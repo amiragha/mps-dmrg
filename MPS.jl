@@ -3,7 +3,7 @@ using TensorOperations
 # The MPS type
 mutable struct MPS
     length :: Int64
-    bond_dim :: Int64
+    max_bond_dim :: Int64
     phys_dim :: Int64
     state :: Vector{Array{Complex128, 3}}
 end
@@ -12,22 +12,22 @@ end
 ### constructors ###
 ####################
 
-function MPS(L, chi, d, configuration::Vector{Vector{Complex128}}, noise::Float64)
+function MPS(Lx, chi, d, configuration::Vector{Vector{Complex128}}, noise::Float64)
 
     @assert length(configuration) == L
     ### TODO: check for configuration or even better make it a structure
 
     mps_noise = noise * rand(Float64, 1, d, 1)
-    state = [ reshape(configuration[i], 1, d, 1) + mps_noise for i=1:L ]
+    state = [ reshape(configuration[i], 1, d, 1) + mps_noise for i=1:Lx ]
     ## Q?: normalize, probably due to the application of noise?!
-    MPS(L, chi, d, state)
+    MPS(Lx, chi, d, state)
 end
 
-function MPS(L, chi, d=2, noise::Float64=0.0)
+function MPS(Lx, chi, d=2, noise::Float64=0.0)
     mps_noise = noise * rand(Complex128, 1, d, 1)
-    state = [ sqrt(1/d) * ones(Complex128, 1, d, 1) + mps_noise for i=1:L ]
+    state = [ sqrt(1/d) * ones(Complex128, 1, d, 1) + mps_noise for i=1:Lx ]
     ## Q?: normalize, probably due to application of noise?!
-    MPS(L, M, d, state)
+    MPS(Lx, chi, d, state)
 end
 
 ################################
@@ -39,7 +39,7 @@ function apply_2site_unitary!(mps::MPS, l::Int64, U::Matrix{Complex128})
     ## Q?: does this unitary ever end up being actually complex in the
     ## Fishman approach?
 
-    @assert 0 < l < mps.L
+    @assert 0 < l < mps.length
 
     d = mps.phys_dim
 
@@ -59,9 +59,28 @@ function apply_2site_unitary!(mps::MPS, l::Int64, U::Matrix{Complex128})
     ## Q?: should be possible to make the reshaped version of R directly!
 
     fact = svdfact(reshape(R, chi_l*d, d*chi_r), thin=true)
+    U  = fact[:U]
+    S  = fact[:S]
+    Vt = fact[:Vt]
 
-    # 1. truncate based on a threshold
-    # 2. find new bond dimensions
-    # 3. update the states of the MPS based on the standard(canonicalization)
+    chi_new = min( mps.max_bond_dim, sum(S .> S[1]*1.e-14) )
+
+    if chi_new < min(chi_l*d, d*chi_r)
+        S  = S[1:chi_new]
+        U  = U[:, 1:chi_new]
+        Vt = Vt[1:chi_new, :]
+        ## possibly normalize?!
+    end
+
+    standard = :right
+    if (standard == :right)
+        mps.state[l]   = reshape(U            , chi_l  , d, chi_new)
+        mps.state[l+1] = reshape(diagm(S) * Vt, chi_new, d, chi_r)
+        mps.canonical_point = l+1
+    elseif (standard == :left)
+        mps.state[l]   = reshape(U * diagm(S), chi_l  , d, chi_new)
+        mps.state[l+1] = reshape(Vt          , chi_new, d, chi_r)
+        mps.canonical_point = l
+    end
 
 end
