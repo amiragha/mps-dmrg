@@ -84,3 +84,11 @@ function apply_2site_unitary!(mps::MPS, l::Int64, U::Matrix{Complex128})
     end
 
 end
+
+function measure_entropies(mps::MPS)
+
+end
+
+function measure_heisenberg(mps::MPS)
+
+end

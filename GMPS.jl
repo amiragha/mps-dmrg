@@ -1,13 +1,22 @@
 # The GMPS class containing gates. (Fishman and White)
-mutable struct GMPS
-    gates
-    size
-    # other stuff
+struct NNGate
+    site::Int
+    theta::Float64
 end
 
-function makeGMPS!(corr_matrix, threshold=1.e-8)
+## QQQ? does GMPS have to be mutable?
+mutable struct GMPS
+    Lx::Int
+    configuration::Vector{Int}
+    gates::Vector{NNGate}
+end
+
+function makeGMPS!(corr_matrix, threshold=1.e-8, verbose=true)
 
     Lx = size(corr_matrix)[1]
+
+    configuration = Vector{Int}(Lx)
+    gates = NNGate[]
 
     for site=1:Lx
 
@@ -31,7 +40,7 @@ function makeGMPS!(corr_matrix, threshold=1.e-8)
         end
 
         # println(site, " B = ", block_end-site+1, ", delta = ", delta)
-        println(vals)
+        # println(vals)
 
         if block_end > site
 
@@ -43,6 +52,7 @@ function makeGMPS!(corr_matrix, threshold=1.e-8)
             v_index = indmax(abs.(vals - 0.5))
             v = eigvecs(corr_block)[:,v_index]
 
+            evalue = vals[v_index]
             # find the set of block_size-1 unitary gate that
             # diagonalize the correlation block
             ## TODO: how to organize and store the gates?
@@ -56,21 +66,25 @@ function makeGMPS!(corr_matrix, threshold=1.e-8)
                         cos(theta) -sin(theta);
                         sin(theta)  cos(theta)
                     ]
+                push!(gates, NNGate(site+pivot-1, theta))
                 ## QQQ? acting on the vectors on left! Why is this a
                 ## better choice?
                 v = transpose(transpose(v) * ugate)
 
-                ### UNCOMMENT FOR TEST ###
                 ugate_block = ugate_block * ugate
-
             end
-            ### UNCOMMENT FOR TEST ###
+
+            ## QQQ? There should be a faster way! Do I even need to
+            ## rotate the whole matrix? Is it faster to rotate per
+            ## block or per NN ugate?
             ugate_extended = eye(Lx, Lx)
             ugate_extended[block_range, block_range] = ugate_block
             corr_matrix= ugate_extended' * corr_matrix * ugate_extended
         end
-        ### UNCOMMENT FOR TEST ###
-        display(corr_matrix)
+        (verbose) && display(corr_matrix)
+        configuration[site] = round(evalue)
     end
-    diag(corr_matrix.')
+    (verbose) && display(diag(corr_matrix.'))
+    (verbose) && display(configuration)
+    return GMPS(Lx, configuration, gates)
 end
