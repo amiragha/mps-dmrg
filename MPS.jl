@@ -17,35 +17,36 @@ function MPS(Lx, chi, d, configuration::Vector{Vector{Complex128}}, noise::Float
 
     @assert length(configuration) == L
     ### TODO: check for configuration or even better make it a structure
+    state = [ reshape(configuration[i], 1, d, 1) + noise * rand(Float64, 1, d, 1)
+              for i=1:Lx ]
 
-    mps_noise = noise * rand(Float64, 1, d, 1)
-    state = [ reshape(configuration[i], 1, d, 1) + mps_noise for i=1:Lx ]
-    ## Q?: normalize, probably due to the application of noise?!
-    mps = MPS(Lx, chi, d, state)
-    center_MPS_at(mps, Lx)
-    return mps
+    ## QQQ?: normalize, probably due to the application of noise?!
+    center_at!(mps, Lx)
+    MPS(Lx, chi, d, state)
 end
 
 function MPS(Lx, chi, d=2, noise::Float64=0.0)
-    mps_noise = noise * rand(Complex128, 1, d, 1)
-    state = [ sqrt(1/d) * ones(Complex128, 1, d, 1) + mps_noise for i=1:Lx ]
-    ## Q?: normalize, probably due to application of noise?!
-    mps = MPS(Lx, chi, d, state)
-    center_MPS_at(mps, Lx)
-    return mps
+    state = [ sqrt(1/d) * ones(Complex128, 1, d, 1) + noise * rand(Complex128, 1, d, 1)
+              for i=1:Lx ]
+    ## QQQ?: normalize, probably due to application of noise?!
+    center_at!(state, Lx)
+    MPS(Lx, chi, d, state, Lx)
 end
 
 # contructor from occupied/unoccupied configuration vector (d is 2)
 function MPS(Lx, chi, configuration::Vector{Int}, noise::Float64=0.0)
     mps_noise = noise * rand(Complex128, 1, 2, 1)
 
+    state = [ zeros(Complex128, 1, 2, 1) + noise * rand(Complex128,1,2,1)
+              for i=1:Lx ]
     ## NOTE: A binary (0 and 1) configuration files is assumed!
-    state = [ ones(Complex128, 1, configuration[i]+1, 1) + mps_noise for i=1:Lx ]
+    for site=1:Lx
+        state[site][1, configuration[site]+1, 1] = 1
+    end
 
     ## Q?: normalize, probably due to application of noise?!
-    mps = MPS(Lx, chi, 2, state)
-    center_MPS_at(mps, Lx)
-    return mps
+    center_at!(state, Lx)
+    MPS(Lx, chi, 2, state, Lx)
 end
 
 #######################################
@@ -55,24 +56,32 @@ end
 function canonicalize_to_right!(state::Vector{Array{Complex128, 3}},
                                 site::Int64)
     Lx = length(state)
-    if site < mps.length
+    if site < Lx
         a = state[site]
         dims = size(a)
         fact = svdfact(reshape(a, dims[1] * dims[2], dims[3]))
         state[site] = reshape(fact[:U], dims[1], dims[2], dims[3])
-        state[site+1] = diagm(fact[:S]) * fact[:Vt] * state[site+1]
+
+        dims = size(state[site+1])
+        state[site+1] = reshape( diagm(fact[:S]) * fact[:Vt] *
+                                 reshape(state[site+1], dims[1], dims[2] * dims[3]),
+                                 dims[1], dims[2], dims[3] )
     end
     return
 end
 
 function canonicalize_to_left!(state::Vector{Array{Complex128, 3}},
-                               l::Int64)
-    if l > 0
+                               site::Int64)
+    if site > 0
         a = state[site]
         dims = size(a)
         fact = svdfact(reshape(a, dims[1], dims[2] * dims[3]))
         state[site] = reshape(fact[:Vt], dims[1], dims[2], dims[3])
-        state[site-1] = state[site-1] * fact[:U] * diagm(fact[:S])
+
+        dims = size(state[site-1])
+        state[site-1] = reshape(reshape(state[site-1], dims[1]*dims[2], dims[3]) *
+                                fact[:U] * diagm(fact[:S]),
+                                dims[1], dims[2], dims[3])
     end
 end
 
@@ -88,35 +97,33 @@ function center_at!(state::Vector{Array{Complex128, 3}},
     for site=Lx:-1:center_index+1
         canonicalize_to_left!(state, site)
     end
-
-    mps.center = center_index
 end
 
 function center_at!(mps::MPS,
-                    l::Int64)
-    center_at(mps.state, l)
+                    center_index::Int64)
+    center_at(mps.state, center_index)
+    mps.center = center_index
 end
 
 ## QQQ? describe the significance of center changing in detail?
 function move_center!(mps::MPS,
-                      l::Int64)
-    @assert l > 0 && l < Lx + 1
+                      new_center::Int64)
+    @assert new_center > 0 && new_center < mps.length + 1
 
-    ## NOTE: I assume the center is already at point l0
-    if l < l0
-        for site = l0:-1:l+1
-            canonicalize_to_left!()
+    ## NOTE: Assume center is already at point current_center
+    current_center = mps.center
+
+    if new_center < current_center
+        for site = current_center:-1:new_center+1
+            canonicalize_to_left!(mps.state, site)
         end
-    elseif l > l0
-        for site = l0:l-1
-            canonicalize_to_right!()
+    elseif new_center > current_center
+        for site = current_center:new_center-1
+            canonicalize_to_right!(mps.state, site)
         end
-    else
-        return
     end
 
-    mps.center = l
-    return
+    mps.center = new_center
 end
 
 #########################################################
