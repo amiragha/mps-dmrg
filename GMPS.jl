@@ -1,9 +1,10 @@
-# The GMPS class containing gates. (Fishman and White)
+# The gate class
 struct NNGate
     site::Int
     theta::Float64
 end
 
+# The GMPS class containing gates (Fishman and White)
 ## QQQ? does GMPS have to be mutable?
 mutable struct GMPS
     Lx::Int
@@ -86,5 +87,6 @@ function makeGMPS!(corr_matrix, threshold=1.e-8, verbose=true)
     end
     (verbose) && display(diag(corr_matrix.'))
     (verbose) && display(configuration)
+
     return GMPS(Lx, configuration, gates)
 end
