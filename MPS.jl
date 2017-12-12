@@ -2,18 +2,22 @@
 
 # The MPS type
 mutable struct MPS
-    length :: Int64
-    max_bond_dim :: Int64
-    phys_dim :: Int64
+    length :: UInt64
+    max_bond_dim :: UInt64
+    phys_dim :: UInt64
     state :: Vector{Array{Complex128, 3}}
-    center :: Int64
+    center :: UInt64
 end
 
 ####################
 ### constructors ###
 ####################
 
-function MPS(Lx, chi, d, configuration::Vector{Vector{Complex128}}, noise::Float64)
+function MPS(Lx::UInt64,
+             chi::UInt64,
+             d::UInt64,
+             configuration::Vector{Vector{Complex128}},
+             noise::Float64)
 
     @assert length(configuration) == L
     ### TODO: check for configuration or even better make it a structure
@@ -25,7 +29,11 @@ function MPS(Lx, chi, d, configuration::Vector{Vector{Complex128}}, noise::Float
     MPS(Lx, chi, d, state)
 end
 
-function MPS(Lx, chi, d=2, noise::Float64=0.0)
+function MPS(Lx::UInt64,
+             chi::UInt64,
+             d::UInt64=2,
+             noise::Float64=0.0)
+
     state = [ sqrt(1/d) * ones(Complex128, 1, d, 1) + noise * rand(Complex128, 1, d, 1)
               for i=1:Lx ]
     ## QQQ?: normalize, probably due to application of noise?!
@@ -34,7 +42,11 @@ function MPS(Lx, chi, d=2, noise::Float64=0.0)
 end
 
 # contructor from occupied/unoccupied configuration vector (d is 2)
-function MPS(Lx, chi, configuration::Vector{Int}, noise::Float64=0.0)
+function MPS(Lx::UInt64,
+             chi::UInt64,
+             configuration::Vector{UInt64},
+             noise::Float64=0.0)
+
     mps_noise = noise * rand(Complex128, 1, 2, 1)
 
     state = [ zeros(Complex128, 1, 2, 1) + noise * rand(Complex128,1,2,1)
@@ -49,6 +61,28 @@ function MPS(Lx, chi, configuration::Vector{Int}, noise::Float64=0.0)
     MPS(Lx, chi, 2, state, Lx)
 end
 
+#constructor from a ketstate
+function MPS(Lx,
+             chi,
+             d,
+             ketstate::Vector{Complex128})
+
+    @assert length(ketstate) == d^Lx
+
+    dims = zeros(Int64, Lx+1)
+    dims[1] = 1
+
+    tmp = transpose(reshape(ketstate, d^(Lx-1), d))
+    fact = svdfact(tmp, thin=true)
+    S, n, ratio =  truncate(fact[:S])
+    dims[link] = n
+    state.push!(transpose(reshape(transpose(fact[:U][:,1:n]),
+                                  dims[link],
+                                  dims[link-1]*d)))
+    diagm(S) * fact[:Vt][1:n,:]
+
+
+end
 #######################################
 ### MPS center manipulation methods ###
 #######################################
