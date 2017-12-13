@@ -1,24 +1,24 @@
 # The MPO class
-struct MPO
+struct MPO{T<:Number}
     length :: Int64
     phys_dim :: Int64
     dims :: Vector{Int64}
-    matrices :: Vector{Array{Complex128,4}}
+    matrices :: Vector{Array{T,4}}
 end
 
 ####################
 ### constructors ###
 ####################
 
-function MPO(Lx::Int64,
-             d::Int64)
+function MPO{T<:Number}(Lx::Int64,
+                        d::Int64)
     # just make the Heisenberg Hamiltonian MPO
-    Sp = Complex128[0.  1.; 0.  0.]
-    Sm = Complex128[0.  0.; 1.  0.]
-    Sz = Complex128[.5  0.; 0. -.5]
-    I2 = eye(Complex128, 2)
+    Sp = T[0.  1.; 0.  0.]
+    Sm = T[0.  0.; 1.  0.]
+    Sz = T[.5  0.; 0. -.5]
+    I2 = eye(T, 2)
 
-    mat = zeros(Complex128, d, 5, d, 5)
+    mat = zeros(T, d, 5, d, 5)
     mat[:,1,:,1] = I2
     mat[:,2,:,1] = 0.5 * Sp
     mat[:,3,:,1] = 0.5 * Sm
@@ -29,7 +29,7 @@ function MPO(Lx::Int64,
     mat[:,5,:,4] = Sz
     mat[:,5,:,5] = I2
 
-    matrices = Array{Complex128,4}[]
+    matrices = Array{T,4}[]
     dims = zeros(Int64, Lx+1)
 
     dims[1] = 1
@@ -42,5 +42,5 @@ function MPO(Lx::Int64,
     push!(matrices, mat[:,:,:,1:1])
     dims[Lx+1] = 1
 
-    return MPO(Lx, d, dims, matrices)
+    return MPO{T}(Lx, d, dims, matrices)
 end

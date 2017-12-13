@@ -1,12 +1,12 @@
-    using TensorOperations
+using TensorOperations
 
 ## QQQ? should I define these as UInt instead? how?
 # The MPS type
-mutable struct MPS
+mutable struct MPS{T<:Number}
     length :: Int64
     phys_dim :: Int64
     dims :: Vector{Int64}
-    matrices :: Vector{Array{Complex128, 3}}
+    matrices :: Vector{Array{T, 3}}
     center :: Int64
 end
 
@@ -65,10 +65,10 @@ end
 #constructor from a ketstate given in Ising configuration
 function MPS(Lx::Int64,
              d::Int64,
-             ketstate::Vector{Complex128})
+             ketstate::Vector{T}) where {T<:Number}
 
     @assert length(ketstate) == d^Lx
-    matrices = Array{Complex128,3}[]
+    matrices = Array{T,3}[]
 
     dims = zeros(Int64, Lx+1)
     dims[1] = 1
@@ -118,8 +118,9 @@ function MPS(Lx::Int64,
     push!(matrices, reshape(diagm(S) * fact[:Vt],
                             dims[Lx], dims[Lx+1], d))
 
-    return MPS(Lx, d, dims, matrices, Lx)
+    return MPS{T}(Lx, d, dims, matrices, Lx)
 end
+
 #######################################
 ### MPS center manipulation methods ###
 #######################################
@@ -201,12 +202,12 @@ end
 # ### MPS measurement and operator applications methods ###
 # #########################################################
 
-function norm(mps::MPS)
+function norm(mps::MPS{T}) where {T<:Number}
     d = mps.phys_dim
     Lx = mps.length
 
     m0 = mps.dims[1]
-    result = ones(Complex128, m0, m0)
+    result = ones(T, m0, m0)
 
     for site=1:Lx
         mat = mps.matrices[site]
@@ -225,18 +226,18 @@ end
 """
     measure(mps, operator, location)
 
-local operator measurement
+local operator measurement at one location.
 """
-function measure(mps::MPS,
-                 operator::Matrix{Complex128},
-                 location::Int64)
+function measure(mps::MPS{T},
+                 operator::Matrix{T},
+                 location::Int64) where {T<:Number}
     d = mps.phys_dim
     Lx = mps.length
-    @assert (location =< Lx) && (location > 0)
+    @assert (location <= Lx) && (location > 0)
     @assert size(operator) == (d, d)
 
     m0 = mps.dims[1]
-    result = ones(Complex128, m0, m0)
+    result = ones(T, m0, m0)
 
     for site=1:Lx
         mat = mps.matrices[site]
@@ -261,15 +262,56 @@ function measure(mps::MPS,
 
 end
 
-function measure(mps::MPS,
-                 mpo::MPO)
+"""
+    measure(mps, operator, locations)
+
+local operator measurement at a set of locations. TODO a faster way of
+computation with less number of contractions.
+
+"""
+function measure(mps::MPS{T},
+                 operator::Matrix{T},
+                 locations::Vector{Int64}) where {T<:Number}
+    d = mps.phys_dim
+    Lx = mps.length
+    @assert (location <= Lx) && (location > 0)
+    @assert size(operator) == (d, d)
+
+    m0 = mps.dims[1]
+    result = ones(T, m0, m0)
+
+    for site=1:Lx
+        mat = mps.matrices[site]
+        if site == location
+            @tensor begin
+                result[ru, rd] := ((result[lu, ld] * mat[lu, ru, du])
+                                   * operator[dd, du]
+                                   * conj(mat)[ld, rd, dl])
+            end
+        else
+            # the ":=" sign is needed to redefine result every time!
+            @tensor begin
+                result[ru, rd] := ((result[lu, ld] * mat[lu, ru, d])
+                                   * conj(mat)[ld, rd, d])
+            end
+        end
+    end
+
+    ## NOTE: result is <psi|psi> which is a dims[1] x dims[L+1] matrix
+    ## that is guaranteed to be real.
+    return real(result)
+
+end
+
+function measure(mps::MPS{T},
+                 mpo::MPO{T}) where {T<:Number}
     d = mps.phys_dim
     Lx = mps.length
     @assert (Lx == mpo.length) && (d == mpo.phys_dim)
 
     m0 = mps.dims[1]
     o0 = mpo.dims[1]
-    result = ones(Complex128, m0, m0, o0)
+    result = ones(T, m0, m0, o0)
 
     ## NOTE: This is not the fastest contraction possible, but is not
     ## that bad!
@@ -342,7 +384,7 @@ end
 
 # end
 
-function entropies(mps::MPS)
+function entropies(mps::MPS) where {T<:Number}
 
 end
 
@@ -352,16 +394,16 @@ end
 
 ## NOTE: this function is only meant to be used for testing purposes
 ## because it is very expensive!
-function mps2ketstate(mps::MPS)
+function mps2ketstate(mps::MPS{T}) where {T<:Number}
 
     Lx = mps.length
     d = mps.phys_dim
 
-    ketstate = zeros(Complex128, d^Lx)
+    ketstate = zeros(T, d^Lx)
 
     for ketindex::Int64 = 0:d^Lx-1
         resolve::Int64 = ketindex
-        amplitude = Complex128[1]
+        amplitude = T[1]
 
         ### TODO: there should be a better way to enumerate through
         ### ketindex without generating the configuration from scratch
@@ -380,10 +422,10 @@ end
 ### read and write functions ###
 ################################
 
-function save(mps::MPS)
+function save(mps::MPS{T}) where {T<:Number}
 
 end
 
-function load(mps::MPS)
+function load(mps::MPS{T}) where {T<:Number}
 
 end

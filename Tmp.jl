@@ -1,6 +1,7 @@
 module Tmp
 
 include("tools.jl")
+include("exact_diagonalization.jl")
 include("correlation_matrix.jl")
 include("GMERA.jl")
 include("GMPS.jl")
