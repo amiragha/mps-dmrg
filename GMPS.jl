@@ -1,22 +1,31 @@
-# The gate class
+# The gate type
 struct NNGate
     site::Int
     theta::Float64
 end
 
-# The GMPS class containing gates (Fishman and White)
+# The GMPS type containing gates (Fishman and White)
 ## QQQ? does GMPS have to be mutable?
 mutable struct GMPS
-    Lx::Int
-    configuration::Vector{Int}
+    Lx::Int64
+    configuration::Vector{Int64}
     gates::Vector{NNGate}
 end
 
-function makeGMPS!(corr_matrix, threshold=1.e-8, verbose=true)
+"""
+    makeGMPS!(corr_matrix[, threshold[, verbose]])
+
+For a given two-point correlation matrix lambda perform the Fishman
+and White approach and generate the local (nearest-neighbor) gates
+
+"""
+function makeGMPS!(corr_matrix::Matrix{Complex128},
+                   threshold::Float64=1.e-8,
+                   verbose::Bool=true)
 
     Lx = size(corr_matrix)[1]
 
-    configuration = Vector{Int}(Lx)
+    configuration = Vector{Int64}(Lx)
     gates = NNGate[]
 
     for site=1:Lx
@@ -26,17 +35,17 @@ function makeGMPS!(corr_matrix, threshold=1.e-8, verbose=true)
         corr_block = [evalue]
         vals = corr_block
 
-        # abs function is there just in case but should be removed
+        ## NOTE:abs function is there just in case! but should be removed!
         delta = min(abs(evalue), abs(1-evalue))
 
         while (delta > threshold && block_end < Lx)
             block_end += 1
-            ## TODO: better slicing method (probably arrayviews or sub)
-            corr_block = corr_matrix[site:block_end, site:block_end]
 
+            ## TODO: think for better slicing method (probably arrayviews or sub)
+            corr_block = corr_matrix[site:block_end, site:block_end]
             vals = eigvals(corr_block)
 
-            ## The abs function is there just in case! but should be removed!
+            ## NOTE:The abs function is there just in case! but should be removed!
             delta = min(abs(minimum(vals)), abs(1-maximum(vals)))
         end
 
@@ -51,11 +60,11 @@ function makeGMPS!(corr_matrix, threshold=1.e-8, verbose=true)
             # find the closest eigenvalue to occupied/unoccupied and
             # the corresponding eigenvector, $v$.
             v_index = indmax(abs.(vals - 0.5))
+            evalue = vals[v_index]
             v = eigvecs(corr_block)[:,v_index]
 
-            evalue = vals[v_index]
-            # find the set of block_size-1 unitary gate that
-            # diagonalize the correlation block
+            # find the set of (block_size-1) unitary gate that
+            # diagonalize the current correlation block
             ## TODO: how to organize and store the gates?
             ugate_block = eye(block_size, block_size)
             for pivot = block_size-1:-1:1
@@ -68,7 +77,7 @@ function makeGMPS!(corr_matrix, threshold=1.e-8, verbose=true)
                         sin(theta)  cos(theta)
                     ]
                 push!(gates, NNGate(site+pivot-1, theta))
-                ## QQQ? acting on the vectors on left! Why is this a
+                ## QQQ? acting on the vectors from left! Why is this a
                 ## better choice?
                 v = transpose(transpose(v) * ugate)
 

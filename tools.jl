@@ -12,3 +12,12 @@ function truncate(svector::Vector{Float64},
     end
     return svector[1:n], n, sum_upto/sum(svector)
 end
+
+function is_strictly_ascending(v::Vector{T}) where {T<:Number}
+    for i=1:length(v)-1
+        if v[i] >= v[i+1]
+            return false
+        end
+    end
+    return true
+end

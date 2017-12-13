@@ -1,4 +1,4 @@
-using TensorOperations
+    using TensorOperations
 
 ## QQQ? should I define these as UInt instead? how?
 # The MPS type
@@ -245,7 +245,7 @@ function measure(mps::MPS{T},
             @tensor begin
                 result[ru, rd] := ((result[lu, ld] * mat[lu, ru, du])
                                    * operator[dd, du]
-                                   * conj(mat)[ld, rd, dl])
+                                   * conj(mat)[ld, rd, dd])
             end
         else
             # the ":=" sign is needed to redefine result every time!
@@ -265,29 +265,54 @@ end
 """
     measure(mps, operator, locations)
 
-local operator measurement at a set of locations. TODO a faster way of
-computation with less number of contractions.
+local operator measurement at a set of locations. currently just
+calles the local measure function. TODO a faster way of computation
+with less number of contractions.
 
 """
 function measure(mps::MPS{T},
                  operator::Matrix{T},
                  locations::Vector{Int64}) where {T<:Number}
-    d = mps.phys_dim
+
+    n = length(locations)
+    result = Vector{Matrix{T}}(n)
+    for i = 1:n
+        result[i] = measure(mps, operator, locations[i])
+    end
+    return result
+end
+
+"""
+    measure(mps, operators, locations)
+
+correlation measurements of a set of operators at distinct set of
+locations. The locations are expected to be in strictly ascending
+order.
+
+"""
+function measure(mps::MPS{T},
+                 operators::Vector{Matrix{T}},
+                 locations::Vector{Int64}) where {T<:Number}
+
     Lx = mps.length
-    @assert (location <= Lx) && (location > 0)
-    @assert size(operator) == (d, d)
+    n = length(locations)
+    @assert length(operators) == n
+    @assert is_strictly_ascending(locations)
+    @assert locations[1] > 0 && locations[n] <= Lx
 
     m0 = mps.dims[1]
     result = ones(T, m0, m0)
 
+    index = 1
     for site=1:Lx
         mat = mps.matrices[site]
-        if site == location
+        if (index <= n) && (site == locations[index])
             @tensor begin
                 result[ru, rd] := ((result[lu, ld] * mat[lu, ru, du])
-                                   * operator[dd, du]
-                                   * conj(mat)[ld, rd, dl])
+                                   * (operators[index])[dd, du]
+                                   * conj(mat)[ld, rd, dd])
             end
+            index += 1
         else
             # the ":=" sign is needed to redefine result every time!
             @tensor begin
@@ -296,11 +321,7 @@ function measure(mps::MPS{T},
             end
         end
     end
-
-    ## NOTE: result is <psi|psi> which is a dims[1] x dims[L+1] matrix
-    ## that is guaranteed to be real.
-    return real(result)
-
+    return result
 end
 
 function measure(mps::MPS{T},
