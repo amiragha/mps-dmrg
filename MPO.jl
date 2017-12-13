@@ -10,8 +10,8 @@ end
 ### constructors ###
 ####################
 
-function MPO{T<:Number}(Lx::Int64,
-                        d::Int64)
+function MPO{T}(Lx::Int64,
+                d::Int64) where {T<:Number}
     # just make the Heisenberg Hamiltonian MPO
     Sp = T[0.  1.; 0.  0.]
     Sm = T[0.  0.; 1.  0.]

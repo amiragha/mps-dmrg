@@ -384,7 +384,7 @@ end
 
 # end
 
-function entropies(mps::MPS) where {T<:Number}
+function entropies(mps::MPS{T}) where {T<:Number}
 
 end
 
