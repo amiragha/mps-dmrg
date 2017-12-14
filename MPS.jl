@@ -30,37 +30,50 @@ end
 #     MPS(Lx, chi, d, state)
 # end
 
-# function MPS(Lx::UInt64,
-#              chi::UInt64,
-#              d::UInt64=2,
-#              noise::Float64=0.0)
+### TODO: merge this constructor with the above one for an arbitrary
+### classical configuration
+function MPS{T}(Lx::Int64,
+                d::Int64=2,
+                noise::Float64=0.0) where {T<:Number}
 
-#     state = [ sqrt(1/d) * ones(Complex128, 1, d, 1) + noise * rand(Complex128, 1, d, 1)
-#               for i=1:Lx ]
-#     ## QQQ?: normalize, probably due to application of noise?!
-#     center_at!(state, Lx)
-#     MPS(Lx, chi, d, state, Lx)
-# end
+    # I think the normalization factor is necessary so that the result
+    # of contraction is not a very large number (d^L in this case)
+    matrices = [ sqrt(1/d) * ones(T, 1, 1, d) + noise * rand(T, 1, 1, d)
+                 for i=1:Lx ]
 
-# # contructor from occupied/unoccupied configuration vector (d is 2)
-# function MPS(Lx::UInt64,
-#              chi::UInt64,
-#              configuration::Vector{UInt64},
-#              noise::Float64=0.0)
+    dims = ones(Int64, Lx+1)
 
-#     mps_noise = noise * rand(Complex128, 1, 2, 1)
+    ## QQQ?: normalize, probably due to application of noise?!
+    ## QQQ?: why should I call center_at!() here?
+    center_at!(state, Lx)
+    MPS{T}(Lx, d, dims, matrices, Lx)
+end
 
-#     state = [ zeros(Complex128, 1, 2, 1) + noise * rand(Complex128,1,2,1)
-#               for i=1:Lx ]
-#     ## NOTE: A binary (0 and 1) configuration files is assumed!
-#     for site=1:Lx
-#         state[site][1, configuration[site]+1, 1] = 1
-#     end
+# constructor from occupied/unoccupied configuration vector{Int64} (d is 2)
+function MPS{T}(Lx::Int64,
+                configuration::Vector{Int64},
+                noise::Float64=0.0) where {T<:Number}
 
-#     ## Q?: normalize, probably due to application of noise?!
-#     center_at!(state, Lx)
-#     MPS(Lx, chi, 2, state, Lx)
-# end
+    matrices = [ zeros(T, 1, 1, 2) + noise * rand(T,1,1,2)
+                 for i=1:Lx ]
+
+    ## NOTE: A binary (0 and 1) configuration vector{Int64} is
+    ## assumed! Should I enforce this?
+    for site=1:Lx
+        matrices[site][1, 1, configuration[site]+1] = 1.
+    end
+
+    dims = ones(Int64, Lx+1)
+
+    ## QQQ?: normalize, probably due to application of noise?!
+    ## QQQ?: why there is a need to call center_at!()
+    center_at!(state, Lx)
+    MPS{T}(Lx, 2, dims, matrices, Lx)
+end
+
+## QQQ? Can I make a constructor from sparse matrices? at least for
+## special cases ??
+### TODO: make a constructor from sparse matrices
 
 #constructor from a ketstate given in Ising configuration
 function MPS(Lx::Int64,
@@ -125,51 +138,54 @@ end
 ### MPS center manipulation methods ###
 #######################################
 
-# function canonicalize_to_right!(state::Vector{Array{Complex128, 3}},
-#                                 site::Int64)
-#     Lx = length(state)
-#     if site < Lx
-#         a = state[site]
-#         dims = size(a)
-#         fact = svdfact(reshape(a, dims[1] * dims[2], dims[3]))
-#         state[site] = reshape(fact[:U], dims[1], dims[2], dims[3])
+function canonicalize_to_right!(state::Vector{Array{Complex128, 3}},
+                                site::Int64)
+    Lx = length(state)
+    if site < Lx
+        a = state[site]
+        dims = size(a)
+        @tensor a[i,d,j] := a[i,j,d]
+        fact = svdfact(reshape(a, dims[1]*dims[3], dims[2]))
+        U = reshape(transpose(fact[:U]), dims[2], dims[1], dims[3])
+        @tensor U[i,j,k] := U[j,i,k]
+        state[site] = U
 
-#         dims = size(state[site+1])
-#         state[site+1] = reshape( diagm(fact[:S]) * fact[:Vt] *
-#                                  reshape(state[site+1], dims[1], dims[2] * dims[3]),
-#                                  dims[1], dims[2], dims[3] )
-#     end
-#     return
-# end
+        dims = size(state[site+1])
 
-# function canonicalize_to_left!(state::Vector{Array{Complex128, 3}},
-#                                site::Int64)
-#     if site > 0
-#         a = state[site]
-#         dims = size(a)
-#         fact = svdfact(reshape(a, dims[1], dims[2] * dims[3]))
-#         state[site] = reshape(fact[:Vt], dims[1], dims[2], dims[3])
+        @tensor state[site+1][i,j,d] := (diagm(fact[:S]) * fact[:Vt])[i, k] *
+            state[site+1][k,j,d]
+    end
+    return
+end
 
-#         dims = size(state[site-1])
-#         state[site-1] = reshape(reshape(state[site-1], dims[1]*dims[2], dims[3]) *
-#                                 fact[:U] * diagm(fact[:S]),
-#                                 dims[1], dims[2], dims[3])
-#     end
-# end
+function canonicalize_to_left!(state::Vector{Array{Complex128, 3}},
+                               site::Int64)
+    if site > 0
+        a = state[site]
+        dims = size(a)
+        fact = svdfact(reshape(a, dims[1], dims[2] * dims[3]))
+        state[site] = reshape(fact[:Vt], dims[1], dims[2], dims[3])
 
-# function center_at!(state::Vector{Array{Complex128, 3}},
-#                     center_index::Int64)
-#     Lx = length(state)
-#     @assert center_index > 0 && center_index < Lx + 1
+        dims = size(state[site-1])
+        @tensor state[site-1][i,j,d] := state[site-1][i,k,d] *
+            (fact[:U] * diagm(fact[:S]))[k,j]
 
-#     for site=1:center_index-1
-#         canonicalize_to_right!(state, site)
-#     end
+    end
+end
 
-#     for site=Lx:-1:center_index+1
-#         canonicalize_to_left!(state, site)
-#     end
-# end
+function center_at!(state::Vector{Array{Complex128, 3}},
+                    center_index::Int64)
+    Lx = length(state)
+    @assert center_index > 0 && center_index < Lx + 1
+
+    for site=1:center_index-1
+        canonicalize_to_right!(state, site)
+    end
+
+    for site=Lx:-1:center_index+1
+        canonicalize_to_left!(state, site)
+    end
+end
 
 # function center_at!(mps::MPS,
 #                     center_index::Int64)
@@ -352,58 +368,61 @@ function measure(mps::MPS{T},
     return result
 end
 
-# function apply_2site_unitary!(mps::MPS,
-#                               l::Int64,
-#                               U::Matrix{Complex128},
-#                               center_to=:right)
+"""
+    apply_nn_unitary!(mps, l, U[, center_to])
 
-#     ## Q?: does this unitary ever end up being actually complex in
-#     ## the Fishman approach?
+applies a unitray matrix `U` which is `2d x 2d` matrix to site `l` and
+`l+1` of the `mps`. It choose the new canonicalization center to be
+by the `center_to` variable.
 
-#     @assert 0 < l < mps.length
+"""
+function apply_nn_unitary!(mps      ::MPS{T},
+                           l        ::Int64,
+                           operator ::Matrix{Complex128},
+                           max_dim  ::Int64,
+                           center_to=:right) where {T<:Number}
 
-#     d = mps.phys_dim
+    ## QQQ?: does this unitary ever end up being actually complex in
+    ## the Fishman approach?
 
-#     ## NOTE: the unitary matrix is (2d)x(2d) dimensional and is acting
-#     ## on the physical dimension of MPS at 2 sites: l, l+1
-#     tensorU = reshape(U,d,d,d,d)
-#     ### TODO: explain how all these reshapes work correctly for future!
+    @assert 0 < l < mps.length-1
 
-#     one = mps.state[l]
-#     two = mps.state[l+1]
+    d = mps.phys_dim
 
-#     chi_l = size(one)[1]
-#     chi_m = size(one)[3]
-#     chi_r = size(two)[3]
+    ## NOTE: the unitary matrix is (2d)x(2d) dimensional and is acting
+    ## on the physical dimension of MPS at 2 sites: l, l+1
+    tensorO = reshape(operator,d,d,d,d)
+    ### TODO: explain how all these reshapes work correctly for future!
 
-#     @tensor R[alpha,i,j,beta] := tensorU[i,j,k,l] * (one[alpha,k,gamma] * two[gamma,l,beta])
-#     ## Q?: should be possible to make the reshaped version of R directly!
+    one = mps.matrices[l]
+    two = mps.matrices[l+1]
 
-#     fact = svdfact(reshape(R, chi_l*d, d*chi_r), thin=true)
-#     U  = fact[:U]
-#     S  = fact[:S]
-#     Vt = fact[:Vt]
 
-#     chi_new = min( mps.max_bond_dim, sum(S .> S[1]*1.e-14) )
+    chi_l = dims[l]
+    chi_m = dims[l+1]
+    chi_r = dims[l+2]
 
-#     if chi_new < min(chi_l*d, d*chi_r)
-#         S  = S[1:chi_new]
-#         U  = U[:, 1:chi_new]
-#         Vt = Vt[1:chi_new, :]
-#         ## possibly normalize?!
-#     end
+    @tensor R[alpha,i,beta,j] := tensorO[i,j,k,l] * (one[alpha,gamma,k] * two[gamma,beta,l])
+    ## Q?: should be possible to make the reshaped version of R directly!
 
-#     if (center_to == :right)
-#         mps.state[l]   = reshape(U            , chi_l  , d, chi_new)
-#         mps.state[l+1] = reshape(diagm(S) * Vt, chi_new, d, chi_r)
-#         mps.center = l+1
-#     elseif (center_to == :left)
-#         mps.state[l]   = reshape(U * diagm(S), chi_l  , d, chi_new)
-#         mps.state[l+1] = reshape(Vt          , chi_new, d, chi_r)
-#         mps.center = l
-#     end
+    fact = svdfact(reshape(R, chi_l*d, chi_r*d), thin=true)
 
-# end
+    S, n, ratio = truncate(fact[:S], max_dim)
+
+    U = fact[:U][:,1:n]
+    Vt = fact[:Vt][1:n,:]
+    ## QQQ? do we need to normalize S here?
+
+    if (center_to == :right)
+        mps.matrices[l]   = reshape(U            , chi_l ,n, d)
+        mps.matrices[l+1] = reshape(diagm(S) * Vt, n, chi_r, d)
+        mps.center = l+1
+    elseif (center_to == :left)
+        mps.matrices[l]   = reshape(U * diagm(S), chi_l, n, d)
+        mps.matrices[l+1] = reshape(Vt          , n, chi_r, d)
+        mps.center = l
+    end
+end
 
 function entropies(mps::MPS{T}) where {T<:Number}
 

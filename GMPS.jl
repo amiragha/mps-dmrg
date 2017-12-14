@@ -1,32 +1,42 @@
-# The gate type
-struct NNGate
-    site::Int
-    theta::Float64
+# The FishmanGates type containing gates (Fishman and White)
+## QQQ? does FishmanGates have to be mutable?
+mutable struct FishmanGates
+    Lx            ::Int64
+    configuration ::Vector{Int64}
+    locations     ::Vector{Int64}
+    thetas        ::Vector{Float64}
+
+    function FishmanGates(Lx::Int64,
+                          configuration::Vector{Int64},
+                          locations::Vector{Int64},
+                          thetas::Vector{Float64})
+
+        @assert length(configuration) == Lx
+        @assert length(locations) == length(thetas)
+
+        return new(Lx, configuration, locations, thetas)
+    end
 end
 
-# The GMPS type containing gates (Fishman and White)
-## QQQ? does GMPS have to be mutable?
-mutable struct GMPS
-    Lx::Int64
-    configuration::Vector{Int64}
-    gates::Vector{NNGate}
-end
 
+### TODO: break this into multiple functions for better look and
+### probably more usability
 """
     makeGMPS!(corr_matrix[, threshold[, verbose]])
-
+tho
 For a given two-point correlation matrix lambda perform the Fishman
 and White approach and generate the local (nearest-neighbor) gates
 
 """
-function makeGMPS!(corr_matrix::Matrix{Complex128},
+function makeGMPS!(corr_matrix::Matrix{T},
                    threshold::Float64=1.e-8,
-                   verbose::Bool=true)
+                   verbose::Bool=true) where {T<:Number}
 
     Lx = size(corr_matrix)[1]
 
     configuration = Vector{Int64}(Lx)
-    gates = NNGate[]
+    locations = Int64[]
+    thetas = Float64[]
 
     for site=1:Lx
 
@@ -76,7 +86,8 @@ function makeGMPS!(corr_matrix::Matrix{Complex128},
                         cos(theta) -sin(theta);
                         sin(theta)  cos(theta)
                     ]
-                push!(gates, NNGate(site+pivot-1, theta))
+                push!(locations, site+pivot-1)
+                push!(thetas, theta)
                 ## QQQ? acting on the vectors from left! Why is this a
                 ## better choice?
                 v = transpose(transpose(v) * ugate)
@@ -97,5 +108,5 @@ function makeGMPS!(corr_matrix::Matrix{Complex128},
     (verbose) && display(diag(corr_matrix.'))
     (verbose) && display(configuration)
 
-    return GMPS(Lx, configuration, gates)
+    return FishmanGates(Lx, configuration, locations, thetas)
 end

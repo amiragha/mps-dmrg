@@ -7,7 +7,7 @@ for `:open` default and `:periodic` boundary conditions.
 
 """
 function correlation_matrix(Lx::Int64,
-                            n_occupied::Int64,
+                            n_occupied::Int64=div(Lx, 2),
                             t::Float64=1.0,
                             mu::Float64=0.0,
                             boundary::Symbol=:open)

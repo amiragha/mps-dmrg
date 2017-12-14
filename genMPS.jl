@@ -1,22 +1,26 @@
-function genMPSfromGMPS(gmps::GMPS, chi::Int, verbose=true)
-    ## QQQ? Why the MPS need to be initialized by the same
+function generateMPS(gmps::FishmanGates,
+                     max_chi::Int64,
+                     verbose::Bool=true)
+
+    ## TODO: explain why the MPS need to be initialized by the same
     ## configuration obtained through GMPS procedure?
-    mps = MPS(gmps.Lx, chi, gmps.configuration)
-    (verbose) && display(mps)
+    mps = MPS{Complex128}(gmps.Lx, gmps.configuration)
 
     ugate_manybody = eye(Complex128, 4, 4)
 
     ## NOTE: The gates should be applied in opposite order compared to
-    ## how they were obtained for GMPS
-    for nngate in gmps.gates
-        theta = nngate.theta
+    ## how they were obtained for GMPS, TODO: explain why!
+    for i=1:length(gmps.locations)
+        site = gmps.locations[n]
+        theta = gmps.thetas[n]
         ugate_manybody[2:3, 2:3] =
             [
                 cos(theta) sin(theta);
                 -sin(theta) cos(theta)
             ]
-        move_center!(mps, nngate.site)
-        apply_2site_unitary!(mps, nngate.site, ugate_manybody)
+        ### TODO: explain why we need to move center of MPS
+        move_center!(mps, site)
+        apply_nn_unitary!(mps, site, ugate_manybody)
     end
     return mps
 end
