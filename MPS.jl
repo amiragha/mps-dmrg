@@ -148,8 +148,8 @@ matricx ``V^{\dagger}`` to matrices of `site+1`. This ensures the
 matrices of `site` are left(!) isometric.
 
 """
-function canonicalize_push_rightstep!(matrices::Vector{Array{Complex128, 3}},
-                                      site::Int64)
+function canonicalize_push_rightstep!(matrices::Vector{Array{T, 3}},
+                                      site::Int64) where {T<:Number}
     Lx = length(matrices)
     if site < Lx
         a = matrices[site]
@@ -178,8 +178,8 @@ singular values to matrices of `site-1`. This ensures the matrices of
 `site` are right(!) isometric.
 
 """
-function canonicalize_push_leftstep!(matrices::Vector{Array{Complex128, 3}},
-                                     site::Int64)
+function canonicalize_push_leftstep!(matrices::Vector{Array{T, 3}},
+                                     site::Int64) where {T<:Number}
     if site > 0
         a = matrices[site]
         dims = size(a)
@@ -449,33 +449,6 @@ function apply_nn_unitary!(mps      ::MPS{T},
 end
 
 """
-    entanglements!(mps)
-
-calculates the entanglement specturm at each bond of MPS from left to
-right by moving the center to each site and calling
-`calculate_entanglement_spectrum_at` on the bond connecting that site
-and the right neighbor. Finally it restores the original center, so
-technically it leaves the MPS invariant.
-
-"""
-function entanglements!(mps::MPS{T}) where {T<:Number}
-
-    initial_center = mps.center
-
-    result = Vector{Float64}[]
-
-    for bond = 1:mps.length-1
-        move_center!(mps, bond)
-        push!(result,
-              calculate_entanglement_spectrum_at(mps, bond))
-
-    end
-
-    move_center!(mps, initial_center)
-    return result
-end
-
-"""
     calculate_entanglement_spectrum_at(mps, bond)
 
 calculates the entanglement specturm at the given `bond` if the
@@ -496,8 +469,39 @@ function calculate_entanglement_spectrum_at(mps::MPS{T},
     d = mps.phys_dim
 
     ### TODO: Is there an easier way to find singular values without
-    ### calculating the vectors
-    return svdfact(reshape(tmp, diml*d, dimr*d))[:S]
+    ### calculating the vectors?
+
+    ## NOTE: the square of the singular values are the entanglement
+    ## spectrum because it is defined based on the reduced density
+    return svdfact(reshape(tmp, diml*d, dimr*d))[:S].^2
+end
+
+"""
+    entanglements!(mps)
+
+calculates the entanglement specturm at each bond of MPS from left to
+right by moving the center to each site and calling
+`calculate_entanglement_spectrum_at` on the bond connecting that site
+and the right neighbor. Finally it restores the original center, so
+technically it leaves the MPS invariant.
+
+"""
+
+function entanglements!(mps::MPS{T}) where {T<:Number}
+
+    initial_center = mps.center
+
+    result = Vector{Float64}[]
+
+    for bond = 1:mps.length-1
+        move_center!(mps, bond)
+        push!(result,
+              calculate_entanglement_spectrum_at(mps, bond))
+
+    end
+
+    move_center!(mps, initial_center)
+    return result
 end
 
 ###########################
@@ -555,5 +559,9 @@ function save(mps::MPS{T}) where {T<:Number}
 end
 
 function load(mps::MPS{T}) where {T<:Number}
+
+end
+
+function load_alps_checkpoint()
 
 end

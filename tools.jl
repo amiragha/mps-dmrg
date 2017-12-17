@@ -30,8 +30,7 @@ function entropy(spectrum::Vector{T},
     if alpha == 1
         return - sum(spectrum .* log.(spectrum))
     else
-        ### TODO: correctly specify the renyi entropy
-        return sum(spectrum.^alpha)
+        return log(sum(spectrum.^alpha))/(1-alpha)
     end
 end
 
