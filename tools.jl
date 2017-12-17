@@ -15,3 +15,31 @@ function is_strictly_ascending(v::Vector{T}) where {T<:Number}
     end
     return true
 end
+
+
+"""
+    entorpy(spectrum[, alpha])
+
+calculate the entropy of a vector of numbers. If `alpha=1` (the
+default) it calculates the usual Shannon (Von-Neumann) entorpy and if
+`alpha > 1` calculates the Renyi entorpy.
+
+"""
+function entropy(spectrum::Vector{T},
+                 alpha::Int64=1) where {T<:Number}
+    if alpha == 1
+        return - sum(spectrum .* log.(spectrum))
+    else
+        ### TODO: correctly specify the renyi entropy
+        return sum(spectrum.^alpha)
+    end
+end
+
+function entropy(spectrums::Vector{Vector{T}},
+                 alpha::Int64=1) where {T<:Number}
+    result = T[]
+    for i=1:length(spectrums)
+        push!(result, entropy(spectrums[i], alpha))
+    end
+    return result
+end

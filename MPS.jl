@@ -67,7 +67,7 @@ function MPS{T}(Lx::Int64,
 
     ## QQQ?: normalize, probably due to application of noise?!
     ## QQQ?: why there is a need to call center_at!()
-    center_at!(state, Lx)
+    canonicalize_at!(matrices, Lx)
     MPS{T}(Lx, 2, dims, matrices, Lx)
 end
 
@@ -138,81 +138,105 @@ end
 ### MPS center manipulation methods ###
 #######################################
 
-function canonicalize_to_right!(state::Vector{Array{Complex128, 3}},
-                                site::Int64)
-    Lx = length(state)
+"""
+    canonicalize_push_rightstep!(matrices, site)
+
+perform a single right step of the canonicalization procedure of a
+vector of matrices at `site`. This is perform an SVD on the matrices
+at `site`, and then multiply the singluar values and right unitary
+matricx ``V^{\dagger}`` to matrices of `site+1`. This ensures the
+matrices of `site` are left(!) isometric.
+
+"""
+function canonicalize_push_rightstep!(matrices::Vector{Array{Complex128, 3}},
+                                      site::Int64)
+    Lx = length(matrices)
     if site < Lx
-        a = state[site]
+        a = matrices[site]
         dims = size(a)
         @tensor a[i,d,j] := a[i,j,d]
         fact = svdfact(reshape(a, dims[1]*dims[3], dims[2]))
         U = reshape(transpose(fact[:U]), dims[2], dims[1], dims[3])
         @tensor U[i,j,k] := U[j,i,k]
-        state[site] = U
+        matrices[site] = U
 
-        dims = size(state[site+1])
+        dims = size(matrices[site+1])
 
-        @tensor state[site+1][i,j,d] := (diagm(fact[:S]) * fact[:Vt])[i, k] *
-            state[site+1][k,j,d]
+        @tensor matrices[site+1][i,j,d] := (diagm(fact[:S]) * fact[:Vt])[i, k] *
+            matrices[site+1][k,j,d]
     end
     return
 end
 
-function canonicalize_to_left!(state::Vector{Array{Complex128, 3}},
-                               site::Int64)
+"""
+    canonicalize_push_leftstep!(matrices, site)
+
+perform a single left step of the canonicalization procedure of a
+vector of matrices at `site`. This is perform an SVD on the matrices
+at `site`, and then multiply the left unitary matricx ``U`` and
+singular values to matrices of `site-1`. This ensures the matrices of
+`site` are right(!) isometric.
+
+"""
+function canonicalize_push_leftstep!(matrices::Vector{Array{Complex128, 3}},
+                                     site::Int64)
     if site > 0
-        a = state[site]
+        a = matrices[site]
         dims = size(a)
         fact = svdfact(reshape(a, dims[1], dims[2] * dims[3]))
-        state[site] = reshape(fact[:Vt], dims[1], dims[2], dims[3])
+        matrices[site] = reshape(fact[:Vt], dims[1], dims[2], dims[3])
 
-        dims = size(state[site-1])
-        @tensor state[site-1][i,j,d] := state[site-1][i,k,d] *
+        dims = size(matrices[site-1])
+        @tensor matrices[site-1][i,j,d] := matrices[site-1][i,k,d] *
             (fact[:U] * diagm(fact[:S]))[k,j]
 
     end
 end
 
-function center_at!(state::Vector{Array{Complex128, 3}},
-                    center_index::Int64)
-    Lx = length(state)
-    @assert center_index > 0 && center_index < Lx + 1
+"""
+    recenter_at!(matrices, center)
+
+canonicalize at `center` from the both ends of an MPS.
+
+"""
+function canonicalize_at!(matrices::Vector{Array{Complex128, 3}},
+                          center::Int64)
+    Lx = length(matrices)
+    @assert center > 0 && center < Lx + 1
 
     for site=1:center_index-1
-        canonicalize_to_right!(state, site)
+        canonicalize_to_right!(matrices, site)
     end
 
     for site=Lx:-1:center_index+1
-        canonicalize_to_left!(state, site)
+        canonicalize_to_left!(matrices, site)
     end
 end
 
-# function center_at!(mps::MPS,
-#                     center_index::Int64)
-#     center_at(mps.state, center_index)
-#     mps.center = center_index
-# end
+"""
+    move_center!(mps, new_center)
 
-# ## QQQ? describe the significance of center changing in detail?
-# function move_center!(mps::MPS,
-#                       new_center::Int64)
-#     @assert new_center > 0 && new_center < mps.length + 1
+move center of mps to a new location at `new_center`.
 
-#     ## NOTE: Assume center is already at point current_center
-#     current_center = mps.center
+"""
+function move_center!(mps::MPS{T},
+                      new_center::Int64) where {T<:Number}
+    Lx= mps.length
+    @assert new_center > 0 && new_center <= Lx
 
-#     if new_center < current_center
-#         for site = current_center:-1:new_center+1
-#             canonicalize_to_left!(mps.state, site)
-#         end
-#     elseif new_center > current_center
-#         for site = current_center:new_center-1
-#             canonicalize_to_right!(mps.state, site)
-#         end
-#     end
-
-#     mps.center = new_center
-# end
+    ## NOTE: it is assumed that the center is correct!
+    center = mps.center
+    if new_center > center
+        for p=center:new_center-1
+            canonicalize_push_rightstep!(mps.matrices, p)
+        end
+    elseif new_center < center
+        for p=center:-1:new_center+1
+            canonicalize_push_leftstep!(mps.matrices, p)
+        end
+    end
+    mps.center = new_center
+end
 
 # #########################################################
 # ### MPS measurement and operator applications methods ###
@@ -424,8 +448,56 @@ function apply_nn_unitary!(mps      ::MPS{T},
     end
 end
 
-function entropies(mps::MPS{T}) where {T<:Number}
+"""
+    entanglements!(mps)
 
+calculates the entanglement specturm at each bond of MPS from left to
+right by moving the center to each site and calling
+`calculate_entanglement_spectrum_at` on the bond connecting that site
+and the right neighbor. Finally it restores the original center, so
+technically it leaves the MPS invariant.
+
+"""
+function entanglements!(mps::MPS{T}) where {T<:Number}
+
+    initial_center = mps.center
+
+    result = Vector{Float64}[]
+
+    for bond = 1:mps.length-1
+        move_center!(mps, bond)
+        push!(result,
+              calculate_entanglement_spectrum_at(mps, bond))
+
+    end
+
+    move_center!(mps, initial_center)
+    return result
+end
+
+"""
+    calculate_entanglement_spectrum_at(mps, bond)
+
+calculates the entanglement specturm at the given `bond` if the
+orthogonality center of `mps`is located on the right site of the bond.
+
+"""
+function calculate_entanglement_spectrum_at(mps::MPS{T},
+                                            bond::Int64) where {T<:Number}
+    Lx = mps.length
+    @assert bond == mps.center
+
+    M1 = mps.matrices[bond]
+    M2 = mps.matrices[bond+1]
+    @tensor tmp[a,d,c,d'] := M1[a,b,d] * M2[b,c,d']
+
+    diml = mps.dims[bond]
+    dimr = mps.dims[bond+2]
+    d = mps.phys_dim
+
+    ### TODO: Is there an easier way to find singular values without
+    ### calculating the vectors
+    return svdfact(reshape(tmp, diml*d, dimr*d))[:S]
 end
 
 ###########################
@@ -458,6 +530,22 @@ function mps2ketstate(mps::MPS{T}) where {T<:Number}
     return ketstate
 end
 
+"""
+    dispaly_matrices(mps[, range])
+
+display all the matrices of the `mps` in `range`. This is useful only
+for testing or educational purposes.
+
+"""
+function display_matrices(mps::MPS{T},
+                          range::UnitRange{Int64}=1:16) where {T<:Number}
+    for site=range
+        for s=1:mps.phys_dim
+            display("Matrix $site $(s-1)")
+            display(mps.matrices[site][:,:,s])
+        end
+    end
+end
 ################################
 ### read and write functions ###
 ################################
