@@ -248,18 +248,18 @@ function norm(mps::MPS{T}) where {T<:Number}
 
     m0 = mps.dims[1]
     result = ones(T, m0, m0)
-
     for site=1:Lx
         mat = mps.matrices[site]
 
         # the ":=" sign is needed to redefine result every time!
         @tensor begin
-            result[ru, rd] := (result[lu, ld] * mat[lu, ru, d]) * conj(mat)[ld, rd, d]
+            result[ru, rd] := ((result[lu, ld] * mat[lu, ru, d])
+                               * conj(mat)[ld, rd, d])
         end
     end
 
-    ## NOTE: result is <psi|psi> which is a dims[1] x dims[L+1] matrix
-    ## that is guaranteed to be real.
+    ## NOTE: the result is a matrix not a number. Here it is
+    ## guaranteed to be real.
     return real(result)
 end
 
@@ -393,41 +393,45 @@ function measure(mps::MPS{T},
 end
 
 """
-    apply_nn_unitary!(mps, l, U[, center_to])
+    apply_nn_unitary!(mps, l, operator[, max_dim [, center_to]])
 
-applies a unitray matrix `U` which is `2d x 2d` matrix to site `l` and
-`l+1` of the `mps`. It choose the new canonicalization center to be
-by the `center_to` variable.
+applies a unitray matrix `operator` which is `2d x 2d` matrix to site
+`l` and `l+1` of the `mps`. The `max_dim` operator chooses the max
+possible size of dimension of the new mps at bond between `l` and
+`l+1`, The singular values are push to either `:left` or `:right`
+(default) matrices using the variable `push_to`.
 
 """
 function apply_nn_unitary!(mps      ::MPS{T},
                            l        ::Int64,
-                           operator ::Matrix{Complex128},
-                           max_dim  ::Int64,
-                           center_to=:right) where {T<:Number}
+                           operator ::Matrix{T},
+                           max_dim  ::Int64=mps.dim[l],
+                           push_to=:right) where {T<:Number}
 
     ## QQQ?: does this unitary ever end up being actually complex in
     ## the Fishman approach?
 
-    @assert 0 < l < mps.length-1
+    @assert mps.center == l || mps.center == l+1
+    @assert l < mps.length-1
 
     d = mps.phys_dim
 
     ## NOTE: the unitary matrix is (2d)x(2d) dimensional and is acting
-    ## on the physical dimension of MPS at 2 sites: l, l+1
+    ## on the physical dimension of MPS at 2 sites: l, l+1. The acting
+    ## indeces are on the columns and l before l+1
     tensorO = reshape(operator,d,d,d,d)
-    ### TODO: explain how all these reshapes work correctly for future!
 
     one = mps.matrices[l]
     two = mps.matrices[l+1]
 
 
-    chi_l = dims[l]
-    chi_m = dims[l+1]
-    chi_r = dims[l+2]
+    chi_l = mps.dims[l]
+    chi_m = mps.dims[l+1]
+    chi_r = mps.dims[l+2]
 
-    @tensor R[alpha,i,beta,j] := tensorO[i,j,k,l] * (one[alpha,gamma,k] * two[gamma,beta,l])
-    ## Q?: should be possible to make the reshaped version of R directly!
+    @tensor R[a,i,b,j] := tensorO[i,j,k,l] * (one[a,b,k] * two[a,b,l])
+    ## Q?: should be possible to make the reshaped version of R
+    ## directly (how to get rid of indeces in TensorOperations)!
 
     fact = svdfact(reshape(R, chi_l*d, chi_r*d), thin=true)
 
@@ -437,14 +441,19 @@ function apply_nn_unitary!(mps      ::MPS{T},
     Vt = fact[:Vt][1:n,:]
     ## QQQ? do we need to normalize S here?
 
-    if (center_to == :right)
-        mps.matrices[l]   = reshape(U            , chi_l ,n, d)
+    if (push_to == :right)
+        U = reshape(transpose(U, n, chi_l, d))
+        @tensor U[i,j,k] := U[j,i,k]
+        mps.matrices[l]   = U
         mps.matrices[l+1] = reshape(diagm(S) * Vt, n, chi_r, d)
         mps.center = l+1
-    elseif (center_to == :left)
-        mps.matrices[l]   = reshape(U * diagm(S), chi_l, n, d)
+    elseif (push_to == :left)
+        U = reshape(transpose(U * diagm(S), n, chi_l, d))
+        @tensor U[i,j,k] := U[j,i,k]
+        mps.matrices[l]   = U
         mps.matrices[l+1] = reshape(Vt          , n, chi_r, d)
         mps.center = l
+    else error("invalid push_to value : ", push_to)
     end
 end
 
@@ -497,7 +506,6 @@ function entanglements!(mps::MPS{T}) where {T<:Number}
         move_center!(mps, bond)
         push!(result,
               calculate_entanglement_spectrum_at(mps, bond))
-
     end
 
     move_center!(mps, initial_center)
@@ -564,4 +572,37 @@ end
 
 function load_alps_checkpoint()
 
+end
+
+###########################
+### Multi-MPS functions ###
+###########################
+
+"""
+    overlap(mps1, mps2)
+
+calculates the overlap between two MPS. Note that it is not divided by
+the norm of the two MPSs, so it returned value is the overlap of the
+two states multiplied by the norm of each.
+
+"""
+function overlap(mps1::MPS{T},
+                 mps2::MPS{T}) where {T<:Number}
+    d = mps1.phys_dim
+    Lx = mps1.length
+    @assert d == mps2.phys_dim && mps2.length == Lx
+
+    result = ones(T, mps1.dims[1], mps2.dims[1])
+    for site=1:Lx
+        mat1 = mps1.matrices[site]
+        mat2 = mps2.matrices[site]
+
+        @tensor begin
+            result[ru, rd] := ((result[lu,ld] * mat1[lu,ru,d])
+                               * conj(mat2)[ld,rd,d])
+        end
+    end
+
+    # NOTE: result is a matrix not a number.
+    return real(result)
 end
