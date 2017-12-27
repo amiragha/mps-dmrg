@@ -57,6 +57,7 @@ end
 ## QQQ? Can I make a constructor from sparse matrices? at least for
 ## special cases ??
 ### TODO: make a constructor from sparse matrices
+### TODO: make a constructor from matrices with symmetries
 
 #constructor from a ketstate given in Ising configuration
 function MPS(Lx::Int64,

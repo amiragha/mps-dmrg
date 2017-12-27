@@ -1,9 +1,13 @@
-using Base.Test
+    using Base.Test
 import Tmp
 
 #srand(1911)
 
-@testset "stuff" begin
+###########################
+### tests for MPS stuff ###
+###########################
+
+@testset "MPS stuff" begin
 
     d, Lx = 2, 8
 
@@ -54,6 +58,21 @@ end
     @testset "locations" begin
         @test Tmp.all_combinations(4, 1, :half) == [[1],[2],[3],[4]]
         @test Tmp.all_combinations(4, 2, :half) == [[1,2],[1,3],[1,4],
-                                                   [2,3],[2,4],[3,4]]
+                                                    [2,3],[2,4],[3,4]]
+    end
+end
+
+########################################
+### tests for exact diagonalizations ###
+########################################
+
+@testset "exact diagonalization" begin
+    @testset "heisenberg methods" begin
+        @test Tmp.heisenberg(2, :open, :explicit)     ≈ Tmp.heisenberg(2, :open, :enumerate)
+        @test Tmp.heisenberg(3, :open, :explicit)     ≈ Tmp.heisenberg(3, :open, :enumerate)
+        @test Tmp.heisenberg(4, :open, :explicit)     ≈ Tmp.heisenberg(4, :open, :enumerate)
+        @test Tmp.heisenberg(2, :periodic, :explicit) ≈ Tmp.heisenberg(2, :periodic, :enumerate)
+        @test Tmp.heisenberg(3, :periodic, :explicit) ≈ Tmp.heisenberg(3, :periodic, :enumerate)
+        @test Tmp.heisenberg(4, :periodic, :explicit) ≈ Tmp.heisenberg(4, :periodic, :enumerate)
     end
 end
