@@ -1,37 +1,20 @@
-    using TensorOperations
+using TensorOperations
 
 ## QQQ? should I define these as UInt instead? how?
 # The MPS type
 mutable struct MPS{T<:Number}
-    length :: Int64
+    length   :: Int64
     phys_dim :: Int64
-    dims :: Vector{Int64}
+    dims     :: Vector{Int64}
     matrices :: Vector{Array{T, 3}}
-    center :: Int64
+    center   :: Int64
 end
 
 ####################
 ### constructors ###
 ####################
 
-# function MPS(Lx::UInt64,
-#              chi::UInt64,
-#              d::UInt64,
-#              configuration::Vector{Vector{Complex128}},
-#              noise::Float64)
-
-#     @assert length(configuration) == L
-#     ### TODO: check for configuration or even better make it a structure
-#     state = [ reshape(configuration[i], 1, d, 1) + noise * rand(Float64, 1, d, 1)
-#               for i=1:Lx ]
-
-#     ## QQQ?: normalize, probably due to the application of noise?!
-#     center_at!(mps, Lx)
-#     MPS(Lx, chi, d, state)
-# end
-
-### TODO: merge this constructor with the above one for an arbitrary
-### classical configuration
+### TODO: write a constructor for an arbitrary classical configuration
 function MPS{T}(Lx::Int64,
                 d::Int64=2,
                 noise::Float64=0.0) where {T<:Number}
@@ -132,6 +115,22 @@ function MPS(Lx::Int64,
                             dims[Lx], dims[Lx+1], d))
 
     return MPS{T}(Lx, d, dims, matrices, Lx)
+end
+
+################################
+### conversion and promotion ###
+################################
+
+### TODO: fix and test this convert function
+## QQQ? How can this help coding other methods?!
+function convert(::MPS{Complex128},
+                 mps::MPS{Float64})
+
+    return MPS{Complex128}(mps.length,
+                           mps.phys_dim,
+                           mps.dims,
+                           convert(Vector{Array{Complex128,3}}, mps.matrices),
+                           mps.center)
 end
 
 #######################################
@@ -260,7 +259,7 @@ function norm(mps::MPS{T}) where {T<:Number}
 
     ## NOTE: the result is a matrix not a number. Here it is
     ## guaranteed to be real.
-    return real(result)
+    return result
 end
 
 """
@@ -298,7 +297,7 @@ function measure(mps::MPS{T},
 
     ## NOTE: result is <psi|psi> which is a dims[1] x dims[L+1] matrix
     ## that is guaranteed to be real.
-    return real(result)
+    return result
 
 end
 
@@ -563,15 +562,15 @@ end
 ################################
 
 function save(mps::MPS{T}) where {T<:Number}
-
+    return 0
 end
 
 function load(mps::MPS{T}) where {T<:Number}
-
+    return 0
 end
 
 function load_alps_checkpoint()
-
+    return 0
 end
 
 ###########################
@@ -586,8 +585,8 @@ the norm of the two MPSs, so it returned value is the overlap of the
 two states multiplied by the norm of each.
 
 """
-function overlap(mps1::MPS{T},
-                 mps2::MPS{T}) where {T<:Number}
+function overlap(mps1::MPS{S},
+                 mps2::MPS{T}) where {S<:Number,T<:Number}
     d = mps1.phys_dim
     Lx = mps1.length
     @assert d == mps2.phys_dim && mps2.length == Lx
@@ -604,5 +603,5 @@ function overlap(mps1::MPS{T},
     end
 
     # NOTE: result is a matrix not a number.
-    return real(result)
+    return result
 end
