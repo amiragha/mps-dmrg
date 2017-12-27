@@ -27,6 +27,9 @@ import Tmp
     end
 
     @testset "measure" begin
+        sz = Float64[0.5 0; 0 -0.5]
+        @test Tmp.measure(mps, sz, collect(1:Lx)) ≈ zeros(Lx) atol=1.e-12
+
         mpo = Tmp.MPO{Float64}(Lx, 2)
         @test Tmp.measure(mps, mpo) ≈ eheis
     end
@@ -40,5 +43,17 @@ import Tmp
         Tmp.move_center!(randmps, 1)
         Tmp.move_center!(mps, Lx)
         @test Tmp.mps2ketstate(randmps) ≈ ketstate
+    end
+end
+
+#############################################
+### tests for auxilary functions in tools ###
+#############################################
+
+@testset "tools" begin
+    @testset "locations" begin
+        @test Tmp.all_combinations(4, 1, :half) == [[1],[2],[3],[4]]
+        @test Tmp.all_combinations(4, 2, :half) == [[1,2],[1,3],[1,4],
+                                                   [2,3],[2,4],[3,4]]
     end
 end

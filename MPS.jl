@@ -1,4 +1,4 @@
-using TensorOperations
+    using TensorOperations
 
 ## QQQ? should I define these as UInt instead? how?
 # The MPS type
@@ -363,6 +363,37 @@ function measure(mps::MPS{T},
     return result
 end
 
+"""
+    measure(mps, operators, mode)
+
+correlation measurements of a set of operators at all distinct
+locations possible. The parameter `mode` has two possible values, the
+`:half` (default) measure at all possible /descending/ locations,
+`:full` measures in all possible locations.
+
+"""
+function measure(mps::MPS{T},
+                 operators::Vector{Matrix{T}},
+                 mode::Symbol=:half) where {T<:Number}
+
+    Lx = mps.length
+    n = length(operators)
+
+    result = T[]
+
+    for locations in all_combinations(Lx, n, mode)
+        push!(result, measure(mps, operators, locations)[1,1])
+    end
+
+    return result
+end
+
+"""
+    measure(mps, mpo)
+
+measures the expectation value of a matrix product operator `mpo`.
+
+"""
 function measure(mps::MPS{T},
                  mpo::MPO{T}) where {T<:Number}
     d = mps.phys_dim
