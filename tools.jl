@@ -28,9 +28,9 @@ default) it calculates the usual Shannon (Von-Neumann) entorpy and if
 function entropy(spectrum::Vector{T},
                  alpha::Int64=1) where {T<:Number}
     if alpha == 1
-        return - sum(spectrum .* log.(spectrum))
+        return - sum(spectrum .* log2.(spectrum))
     else
-        return log(sum(spectrum.^alpha))/(1-alpha)
+        return log2(sum(spectrum.^alpha))/(1-alpha)
     end
 end
 
