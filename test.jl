@@ -1,4 +1,4 @@
-    using Base.Test
+using Base.Test
 import Tmp
 
 #srand(1911)
@@ -16,7 +16,7 @@ import Tmp
     randmps = Tmp.MPS(Lx, d, ketstate)
 
     # The Bethe chain ground state as MPS
-    H = Tmp.heisenberg(Lx)
+    H = Tmp.xxz(Lx)
     eheis, vheis = eigs(H, nev=1, which=:SR)
     mps = Tmp.MPS(Lx, 2, vheis[:,1])
 
@@ -55,13 +55,15 @@ end
     Lx, l = 8, 3
     sz = Float64[0.5 0; 0 -0.5]
 
-    H = Tmp.heisenberg(Lx)
+    H = Tmp.xxz(Lx)
     eheis, vheis = eigs(H, nev=1, which=:SR)
     mps = Tmp.MPS(Lx, 2, vheis[:,1])
 
     mpscopy = deepcopy(mps)
     Tmp.move_center!(mps, l)
     Tmp.apply_twosite_operator!(mps, l, kron(sz,sz))
+
+    @test Tmp.dims_are_consistent(mps)
     @test Tmp.overlap(mpscopy, mps) ≈ Tmp.measure(mpscopy, [sz,sz], [l,l+1])
 
 end
@@ -83,23 +85,23 @@ end
 
 @testset "exact diagonalization" begin
 
-    @testset "full heisenberg generation methods" begin
-        @test Tmp.heisenberg(2, :open, :explicit)     ≈ Tmp.heisenberg(2, :open, :enumerate)
-        @test Tmp.heisenberg(3, :open, :explicit)     ≈ Tmp.heisenberg(3, :open, :enumerate)
-        @test Tmp.heisenberg(4, :open, :explicit)     ≈ Tmp.heisenberg(4, :open, :enumerate)
-        @test Tmp.heisenberg(2, :periodic, :explicit) ≈ Tmp.heisenberg(2, :periodic, :enumerate)
-        @test Tmp.heisenberg(3, :periodic, :explicit) ≈ Tmp.heisenberg(3, :periodic, :enumerate)
-        @test Tmp.heisenberg(4, :periodic, :explicit) ≈ Tmp.heisenberg(4, :periodic, :enumerate)
+    @testset "full xxz generation methods" begin
+        @test Tmp.xxz(2, 1.0, :open, :explicit)     ≈ Tmp.xxz(2, 1.0, :open, :enumerate)
+        @test Tmp.xxz(3, 1.0, :open, :explicit)     ≈ Tmp.xxz(3, 1.0, :open, :enumerate)
+        @test Tmp.xxz(4, 1.0, :open, :explicit)     ≈ Tmp.xxz(4, 1.0, :open, :enumerate)
+        @test Tmp.xxz(2, 1.0, :periodic, :explicit) ≈ Tmp.xxz(2, 1.0, :periodic, :enumerate)
+        @test Tmp.xxz(3, 1.0, :periodic, :explicit) ≈ Tmp.xxz(3, 1.0, :periodic, :enumerate)
+        @test Tmp.xxz(4, 1.0, :periodic, :explicit) ≈ Tmp.xxz(4, 1.0, :periodic, :enumerate)
     end
 
     @testset "szblock vs full odd" begin
 
         Lx=3
-        efull, vfull = eigs(Tmp.heisenberg(Lx), nev=1, which=:SR)
+        efull, vfull = eigs(Tmp.xxz(Lx), nev=1, which=:SR)
 
-        Hsz_p, indeces_p = Tmp.heisenberg_szblock(Lx, :open, 1)
+        Hsz_p, indeces_p = Tmp.xxz_szblock(Lx, 1.0, :open, 1)
         esz_p, vsz_p = eigs(Hsz_p, nev=1, which=:SR)
-        Hsz_m, indeces_m = Tmp.heisenberg_szblock(Lx, :open, -1)
+        Hsz_m, indeces_m = Tmp.xxz_szblock(Lx, 1.0, :open, -1)
         esz_m, vsz_m = eigs(Hsz_m, nev=1, which=:SR)
 
         @test efull ≈ esz_m ≈ esz_p
@@ -112,9 +114,9 @@ end
 
     @testset "szblock vs full even" begin
         Lx=4
-        efull, vfull = eigs(Tmp.heisenberg(Lx), nev=1, which=:SR)
+        efull, vfull = eigs(Tmp.xxz(Lx), nev=1, which=:SR)
 
-        Hsz, indeces = Tmp.heisenberg_szblock(Lx)
+        Hsz, indeces = Tmp.xxz_szblock(Lx)
         esz, vsz = eigs(Hsz, nev=1, which=:SR)
 
         @test efull ≈ esz

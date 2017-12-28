@@ -10,7 +10,7 @@ function generateMPS(gmps::FishmanGates,
 
     ## NOTE: The gates should be applied in opposite order compared to
     ## how they were obtained for GMPS, TODO: explain why!
-    for i=1:length(gmps.locations)
+    for n=length(gmps.locations):-1:1
         site = gmps.locations[n]
         theta = gmps.thetas[n]
         ugate_manybody[2:3, 2:3] =
@@ -20,7 +20,7 @@ function generateMPS(gmps::FishmanGates,
             ]
         ### TODO: explain why we need to move center of MPS
         move_center!(mps, site)
-        apply_nn_unitary!(mps, site, ugate_manybody)
+        apply_twosite_operator!(mps, site, ugate_manybody, max_chi)
     end
     return mps
 end

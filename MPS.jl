@@ -204,12 +204,12 @@ function canonicalize_at!(matrices::Vector{Array{Complex128, 3}},
     Lx = length(matrices)
     @assert center > 0 && center < Lx + 1
 
-    for site=1:center_index-1
-        canonicalize_to_right!(matrices, site)
+    for site=1:center-1
+        canonicalize_push_rightstep!(matrices, site)
     end
 
-    for site=Lx:-1:center_index+1
-        canonicalize_to_left!(matrices, site)
+    for site=Lx:-1:center+1
+        canonicalize_push_leftstep!(matrices, site)
     end
 end
 
@@ -447,8 +447,9 @@ function apply_twosite_operator!(mps      ::MPS{T},
                                  max_dim  ::Int64=mps.dims[l+1],
                                  push_to  ::Symbol=:right) where {T<:Number}
 
+    @assert dims_are_consistent(mps)
     @assert mps.center == l || mps.center == l+1
-    @assert l < mps.length-1
+    @assert l < mps.length
 
     d = mps.phys_dim
 
@@ -460,34 +461,37 @@ function apply_twosite_operator!(mps      ::MPS{T},
     one = mps.matrices[l]
     two = mps.matrices[l+1]
 
-
-    chi_l = mps.dims[l]
-    chi_m = mps.dims[l+1]
-    chi_r = mps.dims[l+2]
+    dim_l = mps.dims[l]
+    dim_m = mps.dims[l+1]
+    dim_r = mps.dims[l+2]
 
     @tensor R[a,i,b,j] := tensorO[i,j,k,l] * (one[a,c,k] * two[c,b,l])
     ## QQQ?: should be possible to make the reshaped version of R
     ## directly (how to get rid of indeces in TensorOperations)!
 
-    fact = svdfact(reshape(R, chi_l*d, chi_r*d), thin=true)
+    fact = svdfact(reshape(R, dim_l*d, dim_r*d), thin=true)
 
     S, n, ratio = truncate(fact[:S], max_dim)
+
+    println(n, dim_m, ratio)
 
     U = fact[:U][:,1:n]
     Vt = fact[:Vt][1:n,:]
     ## QQQ? do we need to normalize S here?
 
+    mps.dims[l+1] = n
+
     if (push_to == :right)
-        U = reshape(transpose(U), n, chi_l, d)
+        U = reshape(transpose(U), n, dim_l, d)
         @tensor U[i,j,k] := U[j,i,k]
         mps.matrices[l]   = U
-        mps.matrices[l+1] = reshape(diagm(S) * Vt, n, chi_r, d)
+        mps.matrices[l+1] = reshape(diagm(S) * Vt, n, dim_r, d)
         mps.center = l+1
     elseif (push_to == :left)
-        U = reshape(transpose(U * diagm(S)), n, chi_l, d)
+        U = reshape(transpose(U * diagm(S)), n, dim_l, d)
         @tensor U[i,j,k] := U[j,i,k]
         mps.matrices[l]   = U
-        mps.matrices[l+1] = reshape(Vt          , n, chi_r, d)
+        mps.matrices[l+1] = reshape(Vt          , n, dim_r, d)
         mps.center = l
     else
         error("invalid push_to value :", push_to)
@@ -602,6 +606,28 @@ function display_matrices(mps::MPS{T},
         end
     end
 end
+
+"""
+    dims_are_consistent(mps)
+
+check if are dimensions are consistent in an mps. This is made for
+testing, in principle all operations must not break the consistency of
+the dimensions of MPS.
+
+"""
+function dims_are_consistent(mps::MPS{T}) where {T<:Number}
+    dims = Int64[]
+    push!(dims,size(mps.matrices[1])[1])
+    for n=1:mps.length-1
+        dim1 = size(mps.matrices[n])[2]
+        dim2 = size(mps.matrices[n+1])[1]
+        if dim1 != dim2 || dim1 != mps.dims[n+1]
+            return false
+        end
+    end
+    return size(mps.matrices[mps.length])[2] == mps.dims[mps.length+1]
+end
+
 ################################
 ### read and write functions ###
 ################################
