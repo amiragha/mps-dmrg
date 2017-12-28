@@ -112,7 +112,7 @@ function MPS(Lx::Int64,
                             dims[Lx-1], dims[Lx], d))
 
     dims[Lx+1] = 1
-    push!(matrices, reshape(diagm(S) * fact[:Vt],
+    push!(matrices, reshape(diagm(S) * fact[:Vt][1:n,:],
                             dims[Lx], dims[Lx+1], d))
 
     return MPS{T}(Lx, d, dims, matrices, Lx)

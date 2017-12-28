@@ -67,12 +67,46 @@ end
 ########################################
 
 @testset "exact diagonalization" begin
-    @testset "heisenberg methods" begin
+
+    @testset "full heisenberg generation methods" begin
         @test Tmp.heisenberg(2, :open, :explicit)     ≈ Tmp.heisenberg(2, :open, :enumerate)
         @test Tmp.heisenberg(3, :open, :explicit)     ≈ Tmp.heisenberg(3, :open, :enumerate)
         @test Tmp.heisenberg(4, :open, :explicit)     ≈ Tmp.heisenberg(4, :open, :enumerate)
         @test Tmp.heisenberg(2, :periodic, :explicit) ≈ Tmp.heisenberg(2, :periodic, :enumerate)
         @test Tmp.heisenberg(3, :periodic, :explicit) ≈ Tmp.heisenberg(3, :periodic, :enumerate)
         @test Tmp.heisenberg(4, :periodic, :explicit) ≈ Tmp.heisenberg(4, :periodic, :enumerate)
+    end
+
+    @testset "szblock vs full odd" begin
+
+        Lx=3
+        efull, vfull = eigs(Tmp.heisenberg(Lx), nev=1, which=:SR)
+
+        Hsz_p, indeces_p = Tmp.heisenberg_szblock(Lx, :open, 1)
+        esz_p, vsz_p = eigs(Hsz_p, nev=1, which=:SR)
+        Hsz_m, indeces_m = Tmp.heisenberg_szblock(Lx, :open, -1)
+        esz_m, vsz_m = eigs(Hsz_m, nev=1, which=:SR)
+
+        @test efull ≈ esz_m ≈ esz_p
+
+        v_p = full(sparsevec(indeces_p, vsz_p[:,1], 2^Lx))
+        v_m = full(sparsevec(indeces_m, vsz_m[:,1], 2^Lx))
+
+        @test sqrt(dot(vfull[:,1], v_p)^2 + dot(vfull[:,1],v_m)^2) ≈ 1.0
+    end
+
+    @testset "szblock vs full even" begin
+        Lx=4
+        efull, vfull = eigs(Tmp.heisenberg(Lx), nev=1, which=:SR)
+
+        Hsz, indeces = Tmp.heisenberg_szblock(Lx)
+        esz, vsz = eigs(Hsz, nev=1, which=:SR)
+
+        @test efull ≈ esz
+
+        v = full(sparsevec(indeces, vsz[:,1], 2^Lx))
+
+        @test abs(dot(vfull[:,1], v)) ≈ 1.0
+
     end
 end
