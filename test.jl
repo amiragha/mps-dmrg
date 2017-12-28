@@ -50,6 +50,21 @@ import Tmp
     end
 end
 
+@testset "apply twosite" begin
+
+    Lx, l = 8, 3
+    sz = Float64[0.5 0; 0 -0.5]
+
+    H = Tmp.heisenberg(Lx)
+    eheis, vheis = eigs(H, nev=1, which=:SR)
+    mps = Tmp.MPS(Lx, 2, vheis[:,1])
+
+    mpscopy = deepcopy(mps)
+    Tmp.move_center!(mps, l)
+    Tmp.apply_twosite_operator!(mps, l, kron(sz,sz))
+    @test Tmp.overlap(mpscopy, mps) ≈ Tmp.measure(mpscopy, [sz,sz], [l,l+1])
+
+end
 #############################################
 ### tests for auxilary functions in tools ###
 #############################################

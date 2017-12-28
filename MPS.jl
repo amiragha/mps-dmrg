@@ -242,6 +242,13 @@ end
 # ### MPS measurement and operator applications methods ###
 # #########################################################
 
+"""
+    norm(mps)
+
+calculates the norm of a matrix product state `mps` that is to
+calculate the tensor contraction corresponding to ``⟨ψ|ψ⟩``.
+
+"""
 function norm(mps::MPS{T}) where {T<:Number}
     d = mps.phys_dim
     Lx = mps.length
@@ -392,7 +399,8 @@ end
 """
     measure(mps, mpo)
 
-measures the expectation value of a matrix product operator `mpo`.
+measures the expectation value of a matrix product operator `mpo`. The
+returned values is ``⟨ψ|O|ψ⟩``.
 
 """
 function measure(mps::MPS{T},
@@ -418,29 +426,26 @@ function measure(mps::MPS{T},
         end
     end
 
-    ## NOTE: result is <psi|O|psi> which is a dims[1] x dims[L+1]
+    ## NOTE: result is ⟨ψ|O|ψ⟩ which is a dims[1] x dims[L+1]
     ## matrix that is guaranteed to be real if the MPO is Hermitian
     return result
 end
 
 """
-    apply_nn_unitary!(mps, l, operator[, max_dim [, center_to]])
+    apply_twosite_operator!(mps, l, operator[, max_dim [, push_to]])
 
-applies a unitray matrix `operator` which is `2d x 2d` matrix to site
+applies a matrix `operator` which is `2d x 2d` matrix to site
 `l` and `l+1` of the `mps`. The `max_dim` operator chooses the max
 possible size of dimension of the new mps at bond between `l` and
 `l+1`, The singular values are push to either `:left` or `:right`
 (default) matrices using the variable `push_to`.
 
 """
-function apply_nn_unitary!(mps      ::MPS{T},
-                           l        ::Int64,
-                           operator ::Matrix{T},
-                           max_dim  ::Int64=mps.dim[l],
-                           push_to=:right) where {T<:Number}
-
-    ## QQQ?: does this unitary ever end up being actually complex in
-    ## the Fishman approach?
+function apply_twosite_operator!(mps      ::MPS{T},
+                                 l        ::Int64,
+                                 operator ::Matrix{T},
+                                 max_dim  ::Int64=mps.dims[l+1],
+                                 push_to  ::Symbol=:right) where {T<:Number}
 
     @assert mps.center == l || mps.center == l+1
     @assert l < mps.length-1
@@ -449,7 +454,7 @@ function apply_nn_unitary!(mps      ::MPS{T},
 
     ## NOTE: the unitary matrix is (2d)x(2d) dimensional and is acting
     ## on the physical dimension of MPS at 2 sites: l, l+1. The acting
-    ## indeces are on the columns and l before l+1
+    ## indeces are on the columns and l is before l+1
     tensorO = reshape(operator,d,d,d,d)
 
     one = mps.matrices[l]
@@ -460,8 +465,8 @@ function apply_nn_unitary!(mps      ::MPS{T},
     chi_m = mps.dims[l+1]
     chi_r = mps.dims[l+2]
 
-    @tensor R[a,i,b,j] := tensorO[i,j,k,l] * (one[a,b,k] * two[a,b,l])
-    ## Q?: should be possible to make the reshaped version of R
+    @tensor R[a,i,b,j] := tensorO[i,j,k,l] * (one[a,c,k] * two[c,b,l])
+    ## QQQ?: should be possible to make the reshaped version of R
     ## directly (how to get rid of indeces in TensorOperations)!
 
     fact = svdfact(reshape(R, chi_l*d, chi_r*d), thin=true)
@@ -473,19 +478,21 @@ function apply_nn_unitary!(mps      ::MPS{T},
     ## QQQ? do we need to normalize S here?
 
     if (push_to == :right)
-        U = reshape(transpose(U, n, chi_l, d))
+        U = reshape(transpose(U), n, chi_l, d)
         @tensor U[i,j,k] := U[j,i,k]
         mps.matrices[l]   = U
         mps.matrices[l+1] = reshape(diagm(S) * Vt, n, chi_r, d)
         mps.center = l+1
     elseif (push_to == :left)
-        U = reshape(transpose(U * diagm(S), n, chi_l, d))
+        U = reshape(transpose(U * diagm(S)), n, chi_l, d)
         @tensor U[i,j,k] := U[j,i,k]
         mps.matrices[l]   = U
         mps.matrices[l+1] = reshape(Vt          , n, chi_r, d)
         mps.center = l
-    else error("invalid push_to value : ", push_to)
+    else
+        error("invalid push_to value :", push_to)
     end
+    nothing
 end
 
 """
@@ -547,8 +554,14 @@ end
 ### some test functions ###
 ###########################
 
-## NOTE: this function is only meant to be used for testing purposes
-## because it is very expensive!
+"""
+    mps2ketstate(mps)
+
+make a ketstate from a `mps` by multiplication the matrices
+corresponding to each Ising configuration. Note that this function is
+very expensive and is only meant for testing.
+
+"""
 function mps2ketstate(mps::MPS{T}) where {T<:Number}
 
     Lx = mps.length
@@ -612,9 +625,11 @@ end
 """
     overlap(mps1, mps2)
 
-calculates the overlap between two MPS. Note that it is not divided by
-the norm of the two MPSs, so it returned value is the overlap of the
-two states multiplied by the norm of each.
+calculates the overlap between two matrix product states `mps1` and
+`mps2` that is to run the tensor contraction corresponding to
+``⟨ψ_2|ψ_1⟩``. Note that it is not divided by the norm of the two
+MPSs, so it returned value is the overlap of the two states multiplied
+by the norm of each.
 
 """
 function overlap(mps1::MPS{S},
