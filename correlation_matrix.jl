@@ -1,35 +1,51 @@
-"""
-    correlation_matrix(Lx, n_occupied[, t[, mu[, boundary]]])
+### TODO: extend to a more general model based system.
+function hamiltonian_matrix(Lx         ::Int64,
+                            t          ::T=1.0,
+                            mu         ::T=0.0,
+                            boundary   ::Symbol=:open) where {T<:Union{Float64,Complex128}}
 
-calculates the two-body correlation matrix lambda using full
-diagonalization "\lambda = \langle a^{dagger}_ia_j \rangle". Support
-for `:open` default and `:periodic` boundary conditions.
-
-"""
-function correlation_matrix(Lx::Int64,
-                            n_occupied::Int64=div(Lx, 2),
-                            t::Float64=1.0,
-                            mu::Float64=0.0,
-                            boundary::Symbol=:open)
-
-    @assert 0 < n_occupied && n_occupied <= Lx
+    hmatrix = diagm(mu .* ones(T, Lx)) +
+        diagm(t .* ones(T, Lx-1), 1) +
+        diagm(conj(t) .* ones(T, Lx-1), -1)
 
     if boundary == :open
-        Hmatrix = SymTridiagonal(mu .* ones(Lx), t .* ones(Lx-1))
+        return hmatrix
     elseif boundary == :periodic
-        Hmatrix = Matrix(SymTridiagonal(mu .* ones(Lx), t .* ones(Lx-1)))
-        Hmatrix[Lx, 1] = t
-        Hmatrix[1, Lx] = t
-        Hmatrix = Hermitian(Hmatrix)
+        hmatrix[1, Lx] = t
+        hmatrix[Lx, 1] = conj(t)
+        return hmatrix
     else
         error("unrecognized boundary condition : ", boundary)
     end
+end
 
-    ## NOTE: the correlation matrix \lambda is made from its diagonal
-    ## form \Gamma, which has n_occupied 1s--corresponding to the
-    ## lowest eigenvalues--and the rest of the diagonal are 0s. We
-    ## have $\Lambda = U^{*} \Gamma U^{T}$
-    vecs = eigfact(Hmatrix, 1:n_occupied)[:vectors]
+"""
+    correlation_matrix(Lx, n_occupied[, t[, mu[, boundary]]])
 
+calculates the two-body correlation matrix lambda ``Λ = ⟨a^†_i a_j⟩``
+by full diagonalization of given Hamiltonian matrix.
+
+Here, the correlation matrix Λ is made from its diagonal form Γ, which
+has n_occupied 1s--corresponding to the lowest eigenvalues--and the
+rest of the diagonal are 0s. We have ``Λ = U^{*} Γ U^{T}``
+
+"""
+function correlation_matrix(hmatrix::Matrix{Float64},
+                            n_occupied ::Int64)
+
+    Lx = size(hmatrix)[1]
+    @assert 0 < n_occupied && n_occupied <= Lx
+
+    vecs = eigfact(Symmetric(hmatrix), Lx-n_occupied+1:Lx)[:vectors]
+    return vecs * transpose(vecs)
+end
+
+function correlation_matrix(hmatrix::Matrix{Complex128},
+                            n_occupied ::Int64)
+
+    Lx = size(hmatrix)[1]
+    @assert 0 < n_occupied && n_occupied <= size(hmatrix)[1]
+
+    vecs = eigfact(Hermitian(hmatrix), Lx-n_occupied+1:Lx)[:vectors]
     return conj(vecs) * transpose(vecs)
 end

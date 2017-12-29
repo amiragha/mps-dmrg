@@ -520,9 +520,9 @@ function apply_twosite_operator!(mps      ::MPS{Complex128},
                                  l        ::Int64,
                                  operator ::Matrix{Float64},
                                  max_dim  ::Int64=mps.dims[l+1],
-                                 push_to  ::Symbol=:right) where {T<:Union{Float64,Complex128}}
+                                 push_to  ::Symbol=:right)
 
-    apply_twosite_operator!(mps, l, lconvert(Matrix{Complex128}, operator),
+    apply_twosite_operator!(mps, l, convert(Matrix{Complex128}, operator),
                             max_dim, push_to)
 end
 
