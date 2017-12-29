@@ -17,7 +17,6 @@ function is_strictly_ascending(v::Vector{T}) where {T<:Number}
     return true
 end
 
-
 """
     entorpy(spectrum[, alpha])
 

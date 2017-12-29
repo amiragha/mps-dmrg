@@ -1,5 +1,9 @@
 module Tmp
 
+import Base.convert
+
+const NumericType = Union{Complex128, Float64}
+
 include("tools.jl")
 include("exact_diagonalization.jl")
 include("correlation_matrix.jl")

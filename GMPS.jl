@@ -30,7 +30,7 @@ and White approach and generate the local (nearest-neighbor) gates
 """
 function makeGMPS!(corr_matrix::Matrix{T},
                    threshold::Float64=1.e-8,
-                   verbose::Bool=true) where {T<:Number}
+                   verbose::Bool=true) where {T<:Union{Float64,Complex128}}
 
     Lx = size(corr_matrix)[1]
 

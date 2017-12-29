@@ -2,7 +2,7 @@
 
 ## QQQ? should I define these as UInt instead? how?
 # The MPS type
-mutable struct MPS{T<:Number}
+mutable struct MPS{T<:Union{Float64,Complex128}}
     length   :: Int64
     phys_dim :: Int64
     dims     :: Vector{Int64}
@@ -17,7 +17,7 @@ end
 ### TODO: write a constructor for an arbitrary classical configuration
 function MPS{T}(Lx::Int64,
                 d::Int64=2,
-                noise::Float64=0.0) where {T<:Number}
+                noise::Float64=0.0) where {T<:Union{Float64,Complex128}}
 
     # I think the normalization factor is necessary so that the result
     # of contraction is not a very large number (d^L in this case)
@@ -35,7 +35,7 @@ end
 # constructor from occupied/unoccupied configuration vector{Int64} (d is 2)
 function MPS{T}(Lx::Int64,
                 configuration::Vector{Int64},
-                noise::Float64=0.0) where {T<:Number}
+                noise::Float64=0.0) where {T<:Union{Float64,Complex128}}
 
     matrices = [ zeros(T, 1, 1, 2) + noise * rand(T,1,1,2)
                  for i=1:Lx ]
@@ -62,7 +62,7 @@ end
 #constructor from a ketstate given in Ising configuration
 function MPS(Lx::Int64,
              d::Int64,
-             ketstate::Vector{T}) where {T<:Number}
+             ketstate::Vector{T}) where {T<:Union{Float64,Complex128}}
 
     @assert length(ketstate) == d^Lx
     matrices = Array{T,3}[]
@@ -118,13 +118,11 @@ function MPS(Lx::Int64,
     return MPS{T}(Lx, d, dims, matrices, Lx)
 end
 
-################################
-### conversion and promotion ###
-################################
+##################################
+### conversions and promotions ###
+##################################
 
-### TODO: fix and test this convert function
-## QQQ? How can this help coding other methods?!
-function convert(::MPS{Complex128},
+function convert(::Type{MPS{Complex128}},
                  mps::MPS{Float64})
 
     return MPS{Complex128}(mps.length,
@@ -149,7 +147,7 @@ matrices of `site` are left(!) isometric.
 
 """
 function canonicalize_push_rightstep!(matrices::Vector{Array{T, 3}},
-                                      site::Int64) where {T<:Number}
+                                      site::Int64) where {T<:Union{Float64,Complex128}}
     Lx = length(matrices)
     if site < Lx
         a = matrices[site]
@@ -179,7 +177,7 @@ singular values to matrices of `site-1`. This ensures the matrices of
 
 """
 function canonicalize_push_leftstep!(matrices::Vector{Array{T, 3}},
-                                     site::Int64) where {T<:Number}
+                                     site::Int64) where {T<:Union{Float64,Complex128}}
     if site > 0
         a = matrices[site]
         dims = size(a)
@@ -220,7 +218,7 @@ move center of mps to a new location at `new_center`.
 
 """
 function move_center!(mps::MPS{T},
-                      new_center::Int64) where {T<:Number}
+                      new_center::Int64) where {T<:Union{Float64,Complex128}}
     Lx= mps.length
     @assert new_center > 0 && new_center <= Lx
 
@@ -249,7 +247,7 @@ calculates the norm of a matrix product state `mps` that is to
 calculate the tensor contraction corresponding to ``⟨ψ|ψ⟩``.
 
 """
-function norm(mps::MPS{T}) where {T<:Number}
+function norm(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
     d = mps.phys_dim
     Lx = mps.length
 
@@ -277,7 +275,7 @@ local operator measurement at one location.
 """
 function measure(mps::MPS{T},
                  operator::Matrix{T},
-                 location::Int64) where {T<:Number}
+                 location::Int64) where {T<:Union{Float64,Complex128}}
     d = mps.phys_dim
     Lx = mps.length
     @assert (location <= Lx) && (location > 0)
@@ -319,7 +317,7 @@ with less number of contractions.
 """
 function measure(mps::MPS{T},
                  operator::Matrix{T},
-                 locations::Vector{Int64}) where {T<:Number}
+                 locations::Vector{Int64}) where {T<:Union{Float64,Complex128}}
 
     n = length(locations)
     result = Vector{Matrix{T}}(n)
@@ -339,7 +337,7 @@ order.
 """
 function measure(mps::MPS{T},
                  operators::Vector{Matrix{T}},
-                 locations::Vector{Int64}) where {T<:Number}
+                 locations::Vector{Int64}) where {T<:Union{Float64,Complex128}}
 
     Lx = mps.length
     n = length(locations)
@@ -382,7 +380,7 @@ locations possible. The parameter `mode` has two possible values, the
 """
 function measure(mps::MPS{T},
                  operators::Vector{Matrix{T}},
-                 mode::Symbol=:half) where {T<:Number}
+                 mode::Symbol=:half) where {T<:Union{Float64,Complex128}}
 
     Lx = mps.length
     n = length(operators)
@@ -396,6 +394,18 @@ function measure(mps::MPS{T},
     return result
 end
 
+function measure(mps::MPS{Complex128},
+                 operators::Vector{Matrix{Float64}},
+                 mode::Symbol=:half)
+    return measure(mps, convert(Vector{Matrix{Complex128}}, operators), mode)
+end
+
+function measure(mps::MPS{Float64},
+                 operators::Vector{Matrix{Complex128}},
+                 mode::Symbol=:half)
+    return measure(convert(MPS{Complex128}, mps), operators, mode)
+end
+
 """
     measure(mps, mpo)
 
@@ -404,13 +414,14 @@ returned values is ``⟨ψ|O|ψ⟩``.
 
 """
 function measure(mps::MPS{T},
-                 mpo::MPO{T}) where {T<:Number}
+                 mpo::MPO{T}) where {T<:Union{Float64,Complex128}}
     d = mps.phys_dim
     Lx = mps.length
     @assert (Lx == mpo.length) && (d == mpo.phys_dim)
 
     m0 = mps.dims[1]
     o0 = mpo.dims[1]
+
     result = ones(T, m0, m0, o0)
 
     ## NOTE: This is not the fastest contraction possible, but is not
@@ -431,6 +442,14 @@ function measure(mps::MPS{T},
     return result
 end
 
+function measure(mps::MPS{Float64}, mpo::MPO{Complex128})
+    return measure(convert(MPS{Complex128}, mps), mpo)
+end
+
+function measure(mps::MPS{Complex128}, mpo::MPO{Float64})
+    return measure(mps, convert(MPO{Complex128}, mpo))
+end
+
 """
     apply_twosite_operator!(mps, l, operator[, max_dim [, push_to]])
 
@@ -445,7 +464,7 @@ function apply_twosite_operator!(mps      ::MPS{T},
                                  l        ::Int64,
                                  operator ::Matrix{T},
                                  max_dim  ::Int64=mps.dims[l+1],
-                                 push_to  ::Symbol=:right) where {T<:Number}
+                                 push_to  ::Symbol=:right) where {T<:Union{Float64,Complex128}}
 
     @assert dims_are_consistent(mps)
     @assert mps.center == l || mps.center == l+1
@@ -473,8 +492,6 @@ function apply_twosite_operator!(mps      ::MPS{T},
 
     S, n, ratio = truncate(fact[:S], max_dim)
 
-    println(n, dim_m, ratio)
-
     U = fact[:U][:,1:n]
     Vt = fact[:Vt][1:n,:]
     ## QQQ? do we need to normalize S here?
@@ -499,6 +516,16 @@ function apply_twosite_operator!(mps      ::MPS{T},
     nothing
 end
 
+function apply_twosite_operator!(mps      ::MPS{Complex128},
+                                 l        ::Int64,
+                                 operator ::Matrix{Float64},
+                                 max_dim  ::Int64=mps.dims[l+1],
+                                 push_to  ::Symbol=:right) where {T<:Union{Float64,Complex128}}
+
+    apply_twosite_operator!(mps, l, lconvert(Matrix{Complex128}, operator),
+                            max_dim, push_to)
+end
+
 """
     calculate_entanglement_spectrum_at(mps, bond)
 
@@ -507,7 +534,7 @@ orthogonality center of `mps`is located on the right site of the bond.
 
 """
 function calculate_entanglement_spectrum_at(mps::MPS{T},
-                                            bond::Int64) where {T<:Number}
+                                            bond::Int64) where {T<:Union{Float64,Complex128}}
     Lx = mps.length
     @assert bond == mps.center
 
@@ -538,7 +565,7 @@ technically it leaves the MPS invariant.
 
 """
 
-function entanglements!(mps::MPS{T}) where {T<:Number}
+function entanglements!(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
 
     initial_center = mps.center
 
@@ -566,7 +593,7 @@ corresponding to each Ising configuration. Note that this function is
 very expensive and is only meant for testing.
 
 """
-function mps2ketstate(mps::MPS{T}) where {T<:Number}
+function mps2ketstate(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
 
     Lx = mps.length
     d = mps.phys_dim
@@ -598,7 +625,7 @@ for testing or educational purposes.
 
 """
 function display_matrices(mps::MPS{T},
-                          range::UnitRange{Int64}=1:16) where {T<:Number}
+                          range::UnitRange{Int64}=1:16) where {T<:Union{Float64,Complex128}}
     for site=range
         for s=1:mps.phys_dim
             display("Matrix $site $(s-1)")
@@ -615,7 +642,7 @@ testing, in principle all operations must not break the consistency of
 the dimensions of MPS.
 
 """
-function dims_are_consistent(mps::MPS{T}) where {T<:Number}
+function dims_are_consistent(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
     dims = Int64[]
     push!(dims,size(mps.matrices[1])[1])
     for n=1:mps.length-1
@@ -632,11 +659,11 @@ end
 ### read and write functions ###
 ################################
 
-function save(mps::MPS{T}) where {T<:Number}
+function save(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
     return 0
 end
 
-function load(mps::MPS{T}) where {T<:Number}
+function load(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
     return 0
 end
 
@@ -658,13 +685,16 @@ MPSs, so it returned value is the overlap of the two states multiplied
 by the norm of each.
 
 """
-function overlap(mps1::MPS{S},
-                 mps2::MPS{T}) where {S<:Number,T<:Number}
+function overlap(mps1::MPS{T},
+                 mps2::MPS{T}) where {T<:Union{Float64,Complex128}}
+
+    promote(mps1, mps2)
     d = mps1.phys_dim
     Lx = mps1.length
     @assert d == mps2.phys_dim && mps2.length == Lx
 
     result = ones(T, mps1.dims[1], mps2.dims[1])
+
     for site=1:Lx
         mat1 = mps1.matrices[site]
         mat2 = mps2.matrices[site]
@@ -677,4 +707,14 @@ function overlap(mps1::MPS{S},
 
     # NOTE: result is a matrix not a number.
     return result
+end
+
+function overlap(mps1::MPS{Complex128},
+                 mps2::MPS{Float64})
+    return overlap(mps1, convert(MPS{Complex128}, mps2))
+end
+
+function overlap(mps1::MPS{Float64},
+                 mps2::MPS{Complex128})
+    return overlap(convert(MPS{Complex128}, mps1), mps2)
 end

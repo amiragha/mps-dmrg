@@ -8,14 +8,14 @@ import Tmp
 ## NOTE: don't go over Lx=20
 Lx = 16
 
-# The Bethe chain ground state
+sz = Float64[0.5 0; 0 -0.5]
 
+# The Bethe chain ground state
 H, indeces = Tmp.xxz_szblock(Lx)
 eheis, v = eigs(H, nev=1, which=:SR)
 vheis = full(sparsevec(indeces, v[:,1], 2^Lx))
 
 mps = Tmp.MPS(Lx, 2, vheis);
-sz = Float64[0.5 0; 0 -0.5]
 
 # random state
 randmps = Tmp.MPS(Lx, 2, normalize(complex.(randn(2^Lx), randn(2^Lx))))
@@ -24,11 +24,9 @@ randmps = Tmp.MPS(Lx, 2, normalize(complex.(randn(2^Lx), randn(2^Lx))))
 overlap = Tmp.overlap(mps, randmps)[1]
 @show abs(overlap), angle(overlap)
 
-sz = Float64[0.5 0; 0 -0.5]
 correlations = Tmp.measure(mps, [sz,sz], :half)
 p1 = plot(correlations[1:Lx-1], label="Heis GS", title="correlations")
 
-sz = Complex128[0.5 0; 0 -0.5]
 correlations_random = Tmp.measure(randmps, [sz,sz], :half)
 p2 = plot(real(correlations_random[1:Lx-1]), label="random", title="correlations")
 plot!(p2, imag(correlations_random[1:Lx-1]), label="imag")
