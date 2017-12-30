@@ -1,4 +1,4 @@
-    using TensorOperations
+using TensorOperations
 
 ## QQQ? should I define these as UInt instead? how?
 # The MPS type
@@ -32,26 +32,24 @@ function MPS{T}(Lx::Int64,
     MPS{T}(Lx, d, dims, matrices, Lx)
 end
 
-# constructor from occupied/unoccupied configuration vector{Int64} (d is 2)
+# constructor from configuration vector{Int64} [0,d-1]
 function MPS{T}(Lx::Int64,
-                configuration::Vector{Int64},
-                noise::Float64=0.0) where {T<:Union{Float64,Complex128}}
+                d::Int64,
+                configuration::Vector{Int64}) where {T<:Union{Float64,Complex128}}
 
-    matrices = [ zeros(T, 1, 1, 2) + noise * rand(T,1,1,2)
-                 for i=1:Lx ]
+    @assert all((0 .<= configuration) .& (configuration .< d))
 
-    ## NOTE: A binary (0 and 1) configuration vector{Int64} is
-    ## assumed! Should I enforce this?
+    matrices = [ zeros(T, 1, 1, d) for i=1:Lx ]
+
     for site=1:Lx
         matrices[site][1, 1, configuration[site]+1] = 1.
     end
 
     dims = ones(Int64, Lx+1)
 
-    ## QQQ?: normalize, probably due to application of noise?!
-    ## QQQ?: why there is a need to call center_at!()
+    ## QQQ?: why there is a need to call canonicalize_at!()
     canonicalize_at!(matrices, Lx)
-    MPS{T}(Lx, 2, dims, matrices, Lx)
+    MPS{T}(Lx, d, dims, matrices, Lx)
 end
 
 ## QQQ? Can I make a constructor from sparse matrices? at least for
@@ -453,7 +451,7 @@ end
 """
     apply_twosite_operator!(mps, l, operator[, max_dim [, push_to]])
 
-applies a matrix `operator` which is `2d x 2d` matrix to site
+applies a matrix `operator` which is `d d x d d` matrix to site
 `l` and `l+1` of the `mps`. The `max_dim` operator chooses the max
 possible size of dimension of the new mps at bond between `l` and
 `l+1`, The singular values are push to either `:left` or `:right`
@@ -472,7 +470,7 @@ function apply_twosite_operator!(mps      ::MPS{T},
 
     d = mps.phys_dim
 
-    ## NOTE: the unitary matrix is (2d)x(2d) dimensional and is acting
+    ## NOTE: the unitary matrix is (d d)x(d d) dimensional and is acting
     ## on the physical dimension of MPS at 2 sites: l, l+1. The acting
     ## indeces are on the columns and l is before l+1
     tensorO = reshape(operator,d,d,d,d)
@@ -490,7 +488,9 @@ function apply_twosite_operator!(mps      ::MPS{T},
 
     fact = svdfact(reshape(R, dim_l*d, dim_r*d), thin=true)
 
+    println(fact[:S])
     S, n, ratio = truncate(fact[:S], max_dim)
+    println(S)
 
     U = fact[:U][:,1:n]
     Vt = fact[:Vt][1:n,:]
@@ -625,7 +625,7 @@ for testing or educational purposes.
 
 """
 function display_matrices(mps::MPS{T},
-                          range::UnitRange{Int64}=1:16) where {T<:Union{Float64,Complex128}}
+                          range::UnitRange{Int64}=1:mps.length) where {T<:Union{Float64,Complex128}}
     for site=range
         for s=1:mps.phys_dim
             display("Matrix $site $(s-1)")

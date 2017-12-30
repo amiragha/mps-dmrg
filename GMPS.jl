@@ -29,8 +29,7 @@ and White approach and generate the local (nearest-neighbor) gates
 
 """
 function makeGMPS!(corr_matrix::Matrix{T},
-                   threshold::Float64=1.e-8,
-                   verbose::Bool=true) where {T<:Union{Float64,Complex128}}
+                   threshold::Float64=1.e-8) where {T<:Union{Float64,Complex128}}
 
     Lx = size(corr_matrix)[1]
 
@@ -40,27 +39,24 @@ function makeGMPS!(corr_matrix::Matrix{T},
 
     for site=1:Lx
 
+        # initial set-up, block of size 1
         block_end = site
         evalue = corr_matrix[site, site]
         corr_block = [evalue]
         vals = corr_block
 
-        ## NOTE:abs function is there just in case! but should be removed!
+        ## NOTE: The `abs` function is here because the eigenvalues
+        ## are between [0,1] only upto machine precision
         delta = min(abs(evalue), abs(1-evalue))
 
         while (delta > threshold && block_end < Lx)
             block_end += 1
 
-            ## TODO: think for better slicing method (probably arrayviews or sub)
             corr_block = corr_matrix[site:block_end, site:block_end]
             vals = eigvals(corr_block)
 
-            ## NOTE:The abs function is there just in case! but should be removed!
             delta = min(abs(minimum(vals)), abs(1-maximum(vals)))
         end
-
-        # println(site, " B = ", block_end-site+1, ", delta = ", delta)
-        # println(vals)
 
         if block_end > site
 
@@ -102,11 +98,8 @@ function makeGMPS!(corr_matrix::Matrix{T},
             ugate_extended[block_range, block_range] = ugate_block
             corr_matrix= ugate_extended' * corr_matrix * ugate_extended
         end
-        (verbose) && display(corr_matrix)
         configuration[site] = round(evalue)
     end
-    (verbose) && display(diag(corr_matrix.'))
-    (verbose) && display(configuration)
 
     return FishmanGates(Lx, configuration, locations, thetas)
 end

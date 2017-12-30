@@ -5,14 +5,14 @@ function hamiltonian_matrix(Lx         ::Int64,
                             boundary   ::Symbol=:open) where {T<:Union{Float64,Complex128}}
 
     hmatrix = diagm(mu .* ones(T, Lx)) +
-        diagm(t .* ones(T, Lx-1), 1) +
-        diagm(conj(t) .* ones(T, Lx-1), -1)
+        diagm(-t .* ones(T, Lx-1), 1) +
+        diagm(conj(-t) .* ones(T, Lx-1), -1)
 
     if boundary == :open
         return hmatrix
     elseif boundary == :periodic
-        hmatrix[1, Lx] = t
-        hmatrix[Lx, 1] = conj(t)
+        hmatrix[1, Lx] = -t
+        hmatrix[Lx, 1] = conj(-t)
         return hmatrix
     else
         error("unrecognized boundary condition : ", boundary)
@@ -36,7 +36,7 @@ function correlation_matrix(hmatrix::Matrix{Float64},
     Lx = size(hmatrix)[1]
     @assert 0 < n_occupied && n_occupied <= Lx
 
-    vecs = eigfact(Symmetric(hmatrix), Lx-n_occupied+1:Lx)[:vectors]
+    vecs = eigfact(Symmetric(hmatrix), 1:n_occupied)[:vectors]
     return vecs * transpose(vecs)
 end
 
@@ -46,6 +46,6 @@ function correlation_matrix(hmatrix::Matrix{Complex128},
     Lx = size(hmatrix)[1]
     @assert 0 < n_occupied && n_occupied <= size(hmatrix)[1]
 
-    vecs = eigfact(Hermitian(hmatrix), Lx-n_occupied+1:Lx)[:vectors]
+    vecs = eigfact(Hermitian(hmatrix), 1:n_occupied)[:vectors]
     return conj(vecs) * transpose(vecs)
 end

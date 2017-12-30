@@ -127,3 +127,42 @@ end
 
     end
 end
+
+##############################
+### Fishman approach tests ###
+##############################
+
+@testset "Fishman approach" begin
+
+    Lx = 8
+
+    # XY spin model
+    H = Tmp.xxz(Lx, 0.0)
+    exy, vxy = eigs(H, nev=1, which=:SR)
+    mpsxy = Tmp.MPS(Lx, 2, vxy[:,1])
+
+    # free fermions
+    corr_matrix = Tmp.correlation_matrix(Tmp.hamiltonian_matrix(Lx), div(Lx,2))
+    gmps = Tmp.makeGMPS!(corr_matrix, 1.e-8)
+    mpsff = Tmp.generateMPS(gmps, 2^div(Lx,2))
+
+    @testset "general" begin
+
+        evals = eigvals(corr_matrix)
+        threshold = 1.e-15
+        @test all((0 - threshold .<= evals) .& (evals .<= 1 + threshold))
+
+        @test Tmp.dims_are_consistent(mpsff)
+    end
+
+    @testset "compare XY with Free Fermions" begin
+        sz = [0.5 0.;0. -0.5]
+        sp = [0.0 1.;0. 0.0]
+        sm = [0.0 0.;1. 0.0]
+        @test Tmp.measure(mpsff, [sz,sz]) ≈ Tmp.measure(mpsxy, [sz,sz])
+        @test Tmp.measure(mpsff, [sp,sm]) ≈ Tmp.measure(mpsxy, [sp,sm])
+
+        xympo = Tmp.MPO{Float64}(Lx, 2, 0.0)
+        @test Tmp.measure(mpsxy, xympo) ≈ Tmp.measure(mpsff, xympo)
+    end
+end

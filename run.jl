@@ -1,5 +1,5 @@
 function runstuff(Lx::Int64,
-                  chi::Int64,
+                  max_dim::Int64,
                   verbose::Bool=true)
 
     @assert Lx % 2 == 0
@@ -19,8 +19,8 @@ function runstuff(Lx::Int64,
     measure(mps)
 
     (verbose) && println("Gutzwiller projection and reporting...")
-    gmps = gutzwiller_project(mps)
-    measure_entropies(gmps)
-    measure_heisenberg(gmps)
+    projmps = gutzwiller_project(mps)
+    entropy(projmps)
+    measure(promgmps, mpo)
 
 end
