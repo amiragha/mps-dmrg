@@ -1,6 +1,6 @@
 function truncate(svector::Vector{Float64},
                   max_dim::Int64=length(svector),
-                  threshold::Float64=1.e-14)
+                  threshold::Float64=1.e-15)
 
     ## NOTE: S is assumed be all non-negative and sorted in
     ## descending order

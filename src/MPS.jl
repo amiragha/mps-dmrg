@@ -61,7 +61,7 @@ end
 function MPS(Lx::Int64,
              d::Int64,
              ketstate::Vector{T};
-             truncate::Bool=true) where {T<:Union{Float64,Complex128}}
+             svtruncate::Bool=true) where {T<:Union{Float64,Complex128}}
 
     @assert length(ketstate) == d^Lx
     matrices = Array{T,3}[]
@@ -77,8 +77,8 @@ function MPS(Lx::Int64,
     for link=2:Lx-1
         fact = svdfact(state_matrix, thin=true)
 
-        if truncate
-            S, n, ratio =  Tmp.truncate(fact[:S])
+        if svtruncate
+            S, n, ratio =  truncate(fact[:S])
         else
             S, n, ratio = fact[:S], length(fact[:S]), 1.
         end
@@ -107,8 +107,8 @@ function MPS(Lx::Int64,
 
     fact = svdfact(state_matrix, thin=true)
 
-    if truncate
-        S, n, ratio =  Tmp.truncate(fact[:S])
+    if svtruncate
+        S, n, ratio =  truncate(fact[:S])
     else
         S, n, ratio = fact[:S], length(fact[:S]), 1.
     end
@@ -158,7 +158,7 @@ of `site` are left(!) isometric.
 """
 function canonicalize_push_rightstep!(matrices::Vector{Array{T, 3}},
                                       site::Int64;
-                                      truncate::Bool=false) where {T<:Union{Float64,Complex128}}
+                                      svtruncate::Bool=false) where {T<:Union{Float64,Complex128}}
     Lx = length(matrices)
     if site < Lx
         a = matrices[site]
@@ -166,8 +166,8 @@ function canonicalize_push_rightstep!(matrices::Vector{Array{T, 3}},
         @tensor a[i,d,j] := a[i,j,d]
         fact = svdfact(reshape(a, dims[1]*dims[3], dims[2]), thin=true)
 
-        if truncate
-            S, n, ratio =  Tmp.truncate(fact[:S])
+        if svtruncate
+            S, n, ratio =  truncate(fact[:S])
             U = fact[:U][:,1:n]
             Vt = fact[:Vt][1:n,:]
         else
@@ -198,14 +198,14 @@ singular values to matrices of `site-1`. This ensures the matrices of
 """
 function canonicalize_push_leftstep!(matrices::Vector{Array{T, 3}},
                                      site::Int64;
-                                     truncate::Bool=false) where {T<:Union{Float64,Complex128}}
+                                     svtruncate::Bool=false) where {T<:Union{Float64,Complex128}}
     if site > 0
         a = matrices[site]
         dims = size(a)
         fact = svdfact(reshape(a, dims[1], dims[2] * dims[3]), thin=true)
 
-        if truncate
-            S, n, ratio =  Tmp.truncate(fact[:S])
+        if svtruncate
+            S, n, ratio =  truncate(fact[:S])
             U = fact[:U][:,1:n]
             Vt = fact[:Vt][1:n,:]
         else
@@ -229,16 +229,17 @@ canonicalize at `center` from the both ends of an MPS.
 
 """
 function canonicalize_at!(matrices::Vector{Array{T, 3}},
-                          center::Int64) where {T<:Union{Float64,Complex128}}
+                          center::Int64;
+                          svtruncate=false) where {T<:Union{Float64,Complex128}}
     Lx = length(matrices)
     @assert center > 0 && center < Lx + 1
 
     for site=1:center-1
-        canonicalize_push_rightstep!(matrices, site)
+        canonicalize_push_rightstep!(matrices, site, svtruncate=svtruncate)
     end
 
     for site=Lx:-1:center+1
-        canonicalize_push_leftstep!(matrices, site)
+        canonicalize_push_leftstep!(matrices, site, svtruncate=svtruncate)
     end
 end
 

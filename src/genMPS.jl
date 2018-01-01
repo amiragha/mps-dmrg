@@ -76,13 +76,13 @@ function generate_twoflavor_ugate(ugate::Matrix{T}) where {T<:Union{Float64,Comp
     # result[14, 15] *= -1.0
     # result[15, 14] *= -1.0
 
-    for j=1:16
-        for i=1:16
-            if xor(i in [10,12,14,16], j in [10,12,14,16])
-                result *= -1.0
-            end
-        end
-    end
+    # for j=1:16
+    #     for i=1:16
+    #         if xor(i in [10,12,14,16], j in [10,12,14,16])
+    #             result *= -1.0
+    #         end
+    #     end
+    # end
 
     return result
 end

@@ -101,7 +101,7 @@ srand(1911)
 
         # make an MPS explicitely from the direct product of the kets
         ket_prod = Tmp.weavekron(ket1, ket2, d1, d2, Lx)
-        mps_prod = Tmp.MPS(Lx, d1*d2, ket_prod, truncate=false)
+        mps_prod = Tmp.MPS(Lx, d1*d2, ket_prod, svtruncate=false)
 
         @test mps_prod.dims == prod_mps.dims
         @test mps_prod.center == prod_mps.center

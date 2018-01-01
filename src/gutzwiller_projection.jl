@@ -8,7 +8,7 @@ function gutzwiller_project(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
         push!(matrices, mps.matrices[site][:,:,2:3])
     end
 
-    canonicalize_at!(matrices, Lx)
+    canonicalize_at!(matrices, div(Lx+1,2), svtruncate=true)
 
     dims = Int64[]
     push!(dims,size(matrices[1])[1])
