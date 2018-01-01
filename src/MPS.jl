@@ -27,8 +27,8 @@ function MPS{T}(Lx::Int64,
     dims = ones(Int64, Lx+1)
 
     ## QQQ?: normalize, probably due to application of noise?!
-    ## QQQ?: why should I call center_at!() here?
-    center_at!(state, Lx)
+    ## QQQ?: why should I call canonicalize_at!() here?
+    canonicalize_at!(matrices, Lx)
     MPS{T}(Lx, d, dims, matrices, Lx)
 end
 
@@ -57,10 +57,11 @@ end
 ### TODO: make a constructor from sparse matrices
 ### TODO: make a constructor from matrices with symmetries
 
-#constructor from a ketstate given in Ising configuration
+#constructor from a ketstate given in Ising basis
 function MPS(Lx::Int64,
              d::Int64,
-             ketstate::Vector{T}) where {T<:Union{Float64,Complex128}}
+             ketstate::Vector{T};
+             truncate::Bool=true) where {T<:Union{Float64,Complex128}}
 
     @assert length(ketstate) == d^Lx
     matrices = Array{T,3}[]
@@ -75,7 +76,12 @@ function MPS(Lx::Int64,
 
     for link=2:Lx-1
         fact = svdfact(state_matrix, thin=true)
-        S, n, ratio =  Tmp.truncate(fact[:S])
+
+        if truncate
+            S, n, ratio =  Tmp.truncate(fact[:S])
+        else
+            S, n, ratio = fact[:S], length(fact[:S]), 1.
+        end
         dims[link] = n
 
         U = fact[:U][:,1:n]
@@ -100,7 +106,13 @@ function MPS(Lx::Int64,
     end
 
     fact = svdfact(state_matrix, thin=true)
-    S, n, ratio =  Tmp.truncate(fact[:S])
+
+    if truncate
+        S, n, ratio =  Tmp.truncate(fact[:S])
+    else
+        S, n, ratio = fact[:S], length(fact[:S]), 1.
+    end
+
     dims[Lx] = n
 
     U = fact[:U][:,1:n]
@@ -140,25 +152,35 @@ end
 perform a single right step of the canonicalization procedure of a
 vector of matrices at `site`. This is perform an SVD on the matrices
 at `site`, and then multiply the singluar values and right unitary
-matricx ``V^{\dagger}`` to matrices of `site+1`. This ensures the
-matrices of `site` are left(!) isometric.
+matricx ``V^{†}`` to matrices of `site+1`. This ensures the matrices
+of `site` are left(!) isometric.
 
 """
 function canonicalize_push_rightstep!(matrices::Vector{Array{T, 3}},
-                                      site::Int64) where {T<:Union{Float64,Complex128}}
+                                      site::Int64;
+                                      truncate::Bool=false) where {T<:Union{Float64,Complex128}}
     Lx = length(matrices)
     if site < Lx
         a = matrices[site]
         dims = size(a)
         @tensor a[i,d,j] := a[i,j,d]
-        fact = svdfact(reshape(a, dims[1]*dims[3], dims[2]))
-        U = reshape(transpose(fact[:U]), dims[2], dims[1], dims[3])
+        fact = svdfact(reshape(a, dims[1]*dims[3], dims[2]), thin=true)
+
+        if truncate
+            S, n, ratio =  Tmp.truncate(fact[:S])
+            U = fact[:U][:,1:n]
+            Vt = fact[:Vt][1:n,:]
+        else
+            S, n, ratio = fact[:S], length(fact[:S]), 1.
+            U = fact[:U]
+            Vt = fact[:Vt]
+        end
+
+        U = reshape(transpose(U), n, dims[1], dims[3])
         @tensor U[i,j,k] := U[j,i,k]
         matrices[site] = U
 
-        dims = size(matrices[site+1])
-
-        @tensor matrices[site+1][i,j,d] := (diagm(fact[:S]) * fact[:Vt])[i, k] *
+        @tensor matrices[site+1][i,j,d] := (diagm(S) * Vt)[i, k] *
             matrices[site+1][k,j,d]
     end
     return
@@ -175,16 +197,27 @@ singular values to matrices of `site-1`. This ensures the matrices of
 
 """
 function canonicalize_push_leftstep!(matrices::Vector{Array{T, 3}},
-                                     site::Int64) where {T<:Union{Float64,Complex128}}
+                                     site::Int64;
+                                     truncate::Bool=false) where {T<:Union{Float64,Complex128}}
     if site > 0
         a = matrices[site]
         dims = size(a)
-        fact = svdfact(reshape(a, dims[1], dims[2] * dims[3]))
-        matrices[site] = reshape(fact[:Vt], dims[1], dims[2], dims[3])
+        fact = svdfact(reshape(a, dims[1], dims[2] * dims[3]), thin=true)
 
-        dims = size(matrices[site-1])
+        if truncate
+            S, n, ratio =  Tmp.truncate(fact[:S])
+            U = fact[:U][:,1:n]
+            Vt = fact[:Vt][1:n,:]
+        else
+            S, n, ratio = fact[:S], length(fact[:S]), 1.
+            U = fact[:U]
+            Vt = fact[:Vt]
+        end
+
+        matrices[site] = reshape(Vt, n, dims[2], dims[3])
+
         @tensor matrices[site-1][i,j,d] := matrices[site-1][i,k,d] *
-            (fact[:U] * diagm(fact[:S]))[k,j]
+            (U * diagm(S))[k,j]
 
     end
 end
@@ -195,8 +228,8 @@ end
 canonicalize at `center` from the both ends of an MPS.
 
 """
-function canonicalize_at!(matrices::Vector{Array{Complex128, 3}},
-                          center::Int64)
+function canonicalize_at!(matrices::Vector{Array{T, 3}},
+                          center::Int64) where {T<:Union{Float64,Complex128}}
     Lx = length(matrices)
     @assert center > 0 && center < Lx + 1
 
@@ -325,6 +358,12 @@ function measure(mps::MPS{T},
     return result
 end
 
+function measure(mps::MPS{Complex128},
+                 operator::Matrix{Float64},
+                 locations::Vector{Int64})
+    measure(mps, convert(Matrix{Complex128}, operator), locations)
+end
+
 """
     measure(mps, operators, locations)
 
@@ -342,6 +381,11 @@ function measure(mps::MPS{T},
     @assert length(operators) == n
     @assert is_strictly_ascending(locations)
     @assert locations[1] > 0 && locations[n] <= Lx
+
+    d = mps.phys_dim
+    for i=1:n
+        @assert size(operators[i]) == (d, d)
+    end
 
     m0 = mps.dims[1]
     result = ones(T, m0, m0)
@@ -488,9 +532,9 @@ function apply_twosite_operator!(mps      ::MPS{T},
 
     fact = svdfact(reshape(R, dim_l*d, dim_r*d), thin=true)
 
-    println(fact[:S])
+    #println(fact[:S])
     S, n, ratio = truncate(fact[:S], max_dim)
-    println(S)
+    #println(S)
 
     U = fact[:U][:,1:n]
     Vt = fact[:Vt][1:n,:]
@@ -688,7 +732,6 @@ by the norm of each.
 function overlap(mps1::MPS{T},
                  mps2::MPS{T}) where {T<:Union{Float64,Complex128}}
 
-    promote(mps1, mps2)
     d = mps1.phys_dim
     Lx = mps1.length
     @assert d == mps2.phys_dim && mps2.length == Lx
@@ -717,4 +760,51 @@ end
 function overlap(mps1::MPS{Float64},
                  mps2::MPS{Complex128})
     return overlap(convert(MPS{Complex128}, mps1), mps2)
+end
+
+
+"""
+    directproduct(mps1, mps2)
+
+The output is the explicit direct product of two matrix product
+states. Note that the final bond dimension is the product of the input
+mps bond dimensions, and thus is not efficient.
+
+"""
+function directproduct(mps1::MPS{T},
+                       mps2::MPS{T}) where {T<:Union{Float64,Complex128}}
+
+    Lx = mps1.length
+    @assert mps2.length == Lx
+
+    center = mps1.center
+    @assert mps2.center == center
+
+    ### TODO: there should be an easier way to do the following!
+    matrices = Array{T,3}[]
+    for site=1:Lx
+        one = mps1.matrices[site]
+        two = mps2.matrices[site]
+
+        diml1, dimr1, d1 = size(one)
+        diml2, dimr2, d2 = size(two)
+
+        directproduct_matrix= zeros(T, diml1*diml2, dimr1*dimr2, d1*d2)
+
+        dindex::Int64 = 0
+        for d1=1:mps1.phys_dim
+            for d2=1:mps2.phys_dim
+                dindex += 1
+                directproduct_matrix[:,:,dindex] = kron(one[:,:,d1],
+                                                        two[:,:,d2])
+            end
+        end
+        push!(matrices, directproduct_matrix)
+    end
+
+    return MPS{T}(Lx,
+                  mps1.phys_dim * mps2.phys_dim,
+                  mps1.dims .* mps2.dims,
+                  matrices,
+                  center)
 end

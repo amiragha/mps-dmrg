@@ -2,8 +2,11 @@ module Tmp
 
 import Base.convert
 
-const NumericType = Union{Complex128, Float64}
+export MPS
+export sz_half, sp_half, sm_half
+export sz_one, sp_one, sm_one
 
+include("constants.jl")
 include("tools.jl")
 include("exact_diagonalization.jl")
 include("correlation_matrix.jl")
@@ -14,7 +17,5 @@ include("MPS.jl")
 include("genMPS.jl")
 include("gutzwiller_projection.jl")
 include("run.jl")
-
-export MPS
 
 end

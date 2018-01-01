@@ -42,7 +42,6 @@ two flavors!
 function generateMPS_twoflavors(gmps::FishmanGates,
                                 max_dim::Int64)
 
-
     mps = MPS{Complex128}(gmps.Lx, 4, 3*gmps.configuration)
 
     ugate_manybody = eye(Complex128, 4, 4)
@@ -66,16 +65,24 @@ function generateMPS_twoflavors(gmps::FishmanGates,
 end
 
 function generate_twoflavor_ugate(ugate::Matrix{T}) where {T<:Union{Float64,Complex128}}
-    result = kron(ugate, ugate)
+    result = weavekron(ugate, ugate, 2, 2, 2)
 
     ## TODO: explain the following indeces
     # apply negative signs imposed by Fock space convention
-    result[6, 10]  *= -1.0
-    result[7, 10]  *= -1.0
-    result[10, 6]  *= -1.0
-    result[10, 7]  *= -1.0
-    result[14, 15] *= -1.0
-    result[15, 14] *= -1.0
+    # result[6, 10]  *= -1.0
+    # result[7, 10]  *= -1.0
+    # result[10, 6]  *= -1.0
+    # result[10, 7]  *= -1.0
+    # result[14, 15] *= -1.0
+    # result[15, 14] *= -1.0
+
+    for j=1:16
+        for i=1:16
+            if xor(i in [10,12,14,16], j in [10,12,14,16])
+                result *= -1.0
+            end
+        end
+    end
 
     return result
 end
