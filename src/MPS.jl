@@ -163,7 +163,8 @@ function canonicalize_push_rightstep!(matrices::Vector{Array{T, 3}},
     if site < Lx
         a = matrices[site]
         dims = size(a)
-        @tensor a[i,d,j] := a[i,j,d]
+        #@tensor a[i,d,j] := a[i,j,d]
+        a = permutedims(a, [1,3,2])
         fact = svdfact(reshape(a, dims[1]*dims[3], dims[2]), thin=true)
 
         if svtruncate
@@ -177,8 +178,8 @@ function canonicalize_push_rightstep!(matrices::Vector{Array{T, 3}},
         end
 
         U = reshape(transpose(U), n, dims[1], dims[3])
-        @tensor U[i,j,k] := U[j,i,k]
-        matrices[site] = U
+        #@tensor U[i,j,k] := U[j,i,k]
+        matrices[site] = permutedims(U, [2,1,3])
 
         @tensor matrices[site+1][i,j,d] := (diagm(S) * Vt)[i, k] *
             matrices[site+1][k,j,d]
@@ -545,14 +546,16 @@ function apply_twosite_operator!(mps      ::MPS{T},
 
     if (push_to == :right)
         U = reshape(transpose(U), n, dim_l, d)
-        @tensor U[i,j,k] := U[j,i,k]
-        mps.matrices[l]   = U
+        # @tensor U[i,j,k] := U[j,i,k]
+        # mps.matrices[l]   = U
+        mps.matrices[l] = permutedims(U, [2,1,3])
         mps.matrices[l+1] = reshape(diagm(S) * Vt, n, dim_r, d)
         mps.center = l+1
     elseif (push_to == :left)
         U = reshape(transpose(U * diagm(S)), n, dim_l, d)
-        @tensor U[i,j,k] := U[j,i,k]
-        mps.matrices[l]   = U
+        #@tensor U[i,j,k] := U[j,i,k]
+        #mps.matrices[l] = U
+        mps.matrices[l]   = permutedims(U, [2,1,3])
         mps.matrices[l+1] = reshape(Vt          , n, dim_r, d)
         mps.center = l
     else
@@ -592,7 +595,8 @@ function calculate_entanglement_spectrum_at(mps::MPS{T},
     d = mps.phys_dim
 
     ### TODO: Is there an easier way to find singular values without
-    ### calculating the vectors?
+    ### calculating the vectors?  also this can be merged with moving
+    ### the center! for one fewer step in calculating the entropies!
 
     ## NOTE: the square of the singular values are the entanglement
     ## spectrum because it is defined based on the reduced density
