@@ -255,7 +255,6 @@ function move_center!(mps::MPS{T},
     Lx= mps.length
     @assert new_center > 0 && new_center <= Lx
 
-    ## NOTE: it is assumed that the center is correct!
     center = mps.center
     if new_center > center
         for p=center:new_center-1

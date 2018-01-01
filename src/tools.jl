@@ -21,16 +21,18 @@ end
     entorpy(spectrum[, alpha])
 
 calculate the entropy of a vector of numbers. If `alpha=1` (the
-default) it calculates the usual Shannon (Von-Neumann) entorpy and if
+default) it calculates the usual Shannon (Von-Neumann) entropy and if
 `alpha > 1` calculates the Renyi entorpy.
 
 """
 function entropy(spectrum::Vector{T},
                  alpha::Int64=1) where {T<:Number}
+
+    s = normalize(spectrum)
     if alpha == 1
-        return - sum(spectrum .* log2.(spectrum))
+        return - sum(s .* log2.(s))
     else
-        return log2(sum(spectrum.^alpha))/(1-alpha)
+        return log2(sum(s.^alpha))/(1-alpha)
     end
 end
 
