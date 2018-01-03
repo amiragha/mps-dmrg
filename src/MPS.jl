@@ -1,4 +1,4 @@
-using TensorOperations
+    using TensorOperations
 
 ## QQQ? should I define these as UInt instead? how?
 # The MPS type
@@ -163,7 +163,6 @@ function canonicalize_push_rightstep!(matrices::Vector{Array{T, 3}},
     if site < Lx
         a = matrices[site]
         dims = size(a)
-        #@tensor a[i,d,j] := a[i,j,d]
         a = permutedims(a, [1,3,2])
         fact = svdfact(reshape(a, dims[1]*dims[3], dims[2]), thin=true)
 
@@ -265,9 +264,29 @@ function move_center!(mps::MPS{T},
             canonicalize_push_leftstep!(mps.matrices, p)
         end
     end
+    correctdims!(mps)
     mps.center = new_center
+    nothing
 end
 
+
+"""
+    correctdims!(mps)
+
+correctly store the bond dimensions of the MPS. This is needed when
+some function manipulate the matrices of the MPS but don't see/fix the
+dims field.
+
+"""
+function correctdims!(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
+    dims = Int64[]
+    push!(dims,size(mps.matrices[1])[1])
+    for n=1:mps.length
+        push!(dims, size(mps.matrices[n])[2])
+    end
+    mps.dims = dims
+    nothing
+end
 # #########################################################
 # ### MPS measurement and operator applications methods ###
 # #########################################################
@@ -691,8 +710,6 @@ the dimensions of MPS.
 
 """
 function dims_are_consistent(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
-    dims = Int64[]
-    push!(dims,size(mps.matrices[1])[1])
     for n=1:mps.length-1
         dim1 = size(mps.matrices[n])[2]
         dim2 = size(mps.matrices[n+1])[1]
@@ -707,8 +724,14 @@ end
 ### read and write functions ###
 ################################
 
-function save(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
-    return 0
+function save(mps::MPS{T}, filename) where {T<:Union{Float64,Complex128}}
+    h5open(filename, "w") do file
+        write(file, "length"   , mps.length)
+        write(file, "phys_dim" , mps.phys_dim)
+        write(file, "dims"     , mps.dims)
+        write(file, "matrices" , mps.matrices)
+        write(file, "center"   , mps.center)
+    end
 end
 
 function load(mps::MPS{T}) where {T<:Union{Float64,Complex128}}

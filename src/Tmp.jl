@@ -1,6 +1,7 @@
 module Tmp
 
 import Base.convert
+using HDF5
 
 export MPS
 export sz_half, sp_half, sm_half
