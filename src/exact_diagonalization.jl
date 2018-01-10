@@ -6,7 +6,7 @@ operator definition. Note that this is slow and uses a lot of memory.
 
 """
 function xxz_explicit(Lx::Int64,
-                      delta::Float64=1.0,
+                      delta::Float64=1.0;
                       boundary::Symbol=:open)
     @assert Lx > 1
 
@@ -50,7 +50,7 @@ h_{ij} = \\frac{1}{2} P_{ij} - \\frac{1}{4}I.
 
 """
 function xxz_enumerate(Lx::Int64,
-                       delta::Float64=1.0,
+                       delta::Float64=1.0;
                        boundary::Symbol=:open)
     @assert Lx > 1
 
@@ -113,13 +113,13 @@ action of Hamiltonian on them.
 
 """
 function xxz(Lx::Int64,
-             delta::Float64=1.0,
+             delta::Float64=1.0;
              boundary::Symbol=:open,
              method::Symbol=:enumerate)
     if method == :explicit
-        return xxz_explicit(Lx, delta, boundary)
+        return xxz_explicit(Lx, delta, boundary=boundary)
     elseif method == :enumerate
-        return xxz_enumerate(Lx, delta, boundary)
+        return xxz_enumerate(Lx, delta, boundary=boundary)
     else
         error("unrecognized generation method :", method)
     end
@@ -137,13 +137,13 @@ diagonalized separately to significantly reduce time complexity. Each
 `sz_total` block consists of Ising vectors with exactly `M = (sz_total
 + Lx)/2` spins up, so the size of the block is ``\binom{L}{M}``. Using
 Sterling formula the size of the largest block, ``M=L/2``, is
-``\sqrt{\pi L/2}`` times smaller than the full Hilbert space, which
-For typical sizes of ED calculation ,``L\sim 30``, is roughly about
-``\sim\!7`` times.
+``√{π L/2}`` times smaller than the full Hilbert space, which
+For typical sizes of ED calculation ,``L∼ 30``, is roughly about
+``∼\!7`` times.
 
 """
 function xxz_szblock(Lx::Int64,
-                     delta::Float64=1.0,
+                     delta::Float64=1.0;
                      boundary::Symbol=:open,
                      sz_total::Int64=(Lx % 2))
     @assert Lx > 1
@@ -205,4 +205,14 @@ function xxz_szblock(Lx::Int64,
     end
 
     return sparse(I, J, V, block_size, block_size, +), (szblock_states .+ 1)
+end
+
+function lanczos_xxz_szblock(Lx::Int64,
+                             delta::Float64=1.0;
+                             boundary::Symbol=:open,
+                             sz_total::Int64=(Lx % 2))
+    Hhs, indeces = xxz_szblock(Lx, delta, boundary=boundary, sz_total=sz_total)
+    eheis, v = eigs(Hhs, nev=1, which=:SR)
+
+    return eheis, v[:, 1]
 end

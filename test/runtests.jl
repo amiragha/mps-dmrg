@@ -172,12 +172,17 @@ end
 @testset "ED stuff" begin
 
     @testset "full xxz generation methods" begin
-        @test Tmp.xxz(2, 1.0, :open, :explicit)     ≈ Tmp.xxz(2, 1.0, :open, :enumerate)
-        @test Tmp.xxz(3, 1.0, :open, :explicit)     ≈ Tmp.xxz(3, 1.0, :open, :enumerate)
-        @test Tmp.xxz(4, 1.0, :open, :explicit)     ≈ Tmp.xxz(4, 1.0, :open, :enumerate)
-        @test Tmp.xxz(2, 1.0, :periodic, :explicit) ≈ Tmp.xxz(2, 1.0, :periodic, :enumerate)
-        @test Tmp.xxz(3, 1.0, :periodic, :explicit) ≈ Tmp.xxz(3, 1.0, :periodic, :enumerate)
-        @test Tmp.xxz(4, 1.0, :periodic, :explicit) ≈ Tmp.xxz(4, 1.0, :periodic, :enumerate)
+        params1 = (:boundary => :open, :method => :explicit)
+        params2 = (:boundary => :open, :method => :enumerate)
+        @test Tmp.xxz(2; params1...) ≈ Tmp.xxz(2; params2...)
+        @test Tmp.xxz(3; params1...) ≈ Tmp.xxz(3; params2...)
+        @test Tmp.xxz(4; params1...) ≈ Tmp.xxz(4; params2...)
+
+        params1 = (:boundary => :periodic, :method => :explicit)
+        params2 = (:boundary => :periodic, :method => :enumerate)
+        @test Tmp.xxz(2; params1...) ≈ Tmp.xxz(2; params2...)
+        @test Tmp.xxz(3; params1...) ≈ Tmp.xxz(3; params2...)
+        @test Tmp.xxz(4; params1...) ≈ Tmp.xxz(4; params2...)
     end
 
     @testset "szblock vs full odd" begin
@@ -185,9 +190,9 @@ end
         Lx=3
         efull, vfull = eigs(Tmp.xxz(Lx), nev=1, which=:SR)
 
-        Hsz_p, indeces_p = Tmp.xxz_szblock(Lx, 1.0, :open, 1)
+        Hsz_p, indeces_p = Tmp.xxz_szblock(Lx, sz_total=1)
         esz_p, vsz_p = eigs(Hsz_p, nev=1, which=:SR)
-        Hsz_m, indeces_m = Tmp.xxz_szblock(Lx, 1.0, :open, -1)
+        Hsz_m, indeces_m = Tmp.xxz_szblock(Lx, sz_total=-1)
         esz_m, vsz_m = eigs(Hsz_m, nev=1, which=:SR)
 
         @test efull ≈ esz_m ≈ esz_p
