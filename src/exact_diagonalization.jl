@@ -62,8 +62,8 @@ function xxz_enumerate(Lx::Int64,
         error("unrecognized boundary condition :", boundary)
     end
 
-    I = Int64[]
-    J = Int64[]
+    I = Int32[]
+    J = Int32[]
     V = Float64[]
 
     ## NOTE: In the code below for simplicity and dealing with bit
@@ -160,8 +160,8 @@ function xxz_szblock(Lx::Int64,
     M = div(Lx + sz_total, 2)
     block_size = binomial(Lx, M)
 
-    I = Int64[]
-    J = Int64[]
+    I = Int32[]
+    J = Int32[]
     V = Float64[]
 
     ## NOTE: In the code below for simplicity and dealing with bit
@@ -207,12 +207,12 @@ function xxz_szblock(Lx::Int64,
     return sparse(I, J, V, block_size, block_size, +), (szblock_states .+ 1)
 end
 
-function lanczos_xxz_szblock(Lx::Int64,
-                             delta::Float64=1.0;
-                             boundary::Symbol=:open,
-                             sz_total::Int64=(Lx % 2))
+function groundstate_xxz_szblock(Lx::Int64,
+                                 delta::Float64=1.0;
+                                 boundary::Symbol=:open,
+                                 sz_total::Int64=(Lx % 2))
     Hhs, indeces = xxz_szblock(Lx, delta, boundary=boundary, sz_total=sz_total)
     eheis, v = eigs(Hhs, nev=1, which=:SR)
 
-    return eheis, v[:, 1]
+    return eheis[1], v[:, 1]
 end

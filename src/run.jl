@@ -69,9 +69,10 @@ function mpsheisenberg(Lx::Int64;
                        method::Symbol=:ED,
                        savemps::Bool=true)
 
-    eheis, v = lanczos_xxz_szblock(Lx)
+    Hhs, indeces = Tmp.xxz_szblock(Lx)
+    eheis, v = eigs(Hhs, nev=1, which=:SR)
 
-    vheis = full(sparsevec(indeces, v, 2^Lx))
+    vheis = full(sparsevec(indeces, v[:,1], 2^Lx))
 
     mps = MPS(Lx, 2, vheis)
     if savemps
