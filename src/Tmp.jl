@@ -17,6 +17,9 @@ include("MPO.jl")
 include("MPS.jl")
 include("genMPS.jl")
 include("gutzwiller_projection.jl")
-include("run.jl")
 
+include("arnoldi.jl")
+include("DMRG.jl")
+
+include("run.jl")
 end
