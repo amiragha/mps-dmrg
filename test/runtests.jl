@@ -29,12 +29,12 @@ srand(1911)
     mps = Tmp.MPS(Lx, 2, vheis[:,1])
 
     @testset "ketstate to MPS to ketstate" begin
-        @test norm(ketstate)^2 ≈ Tmp.norm(randmps)[1,1]
+        @test norm(ketstate)^2 ≈ Tmp.norm2(randmps)[1,1]
         @test ketstate ≈ Tmp.mps2ketstate(randmps)
     end
 
     @testset "overlap of two MPS" begin
-        @test Tmp.overlap(mps, mps) ≈ Tmp.norm(mps)
+        @test Tmp.overlap(mps, mps) ≈ Tmp.norm2(mps)
         @test Tmp.overlap(mps, randmps) ≈ conj.(Tmp.overlap(randmps, mps))
     end
 

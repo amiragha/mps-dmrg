@@ -18,7 +18,7 @@ function rungutz(Lx::Int64,
     # save(mpsgutz, string("mps", Dates.format(now(), "yymmdd:HH:MM:SS"),
     #                      ",", "gutzwiller,chainLx=", "Lx", ".h5"))
 
-    gutznorm = real(norm(mpsgutz)[1,1])
+    gutznorm = real(norm2(mpsgutz)[1,1])
     (verbose) && println("mps norm2 is ", gutznorm)
 
     (verbose) && println("measurements...")

@@ -16,7 +16,7 @@ end
 
 ### TODO: write a constructor for an arbitrary classical configuration
 function MPS{T}(Lx::Int64,
-                d::Int64=2,
+                d::Int64=2;
                 noise::Float64=0.0) where {T<:Union{Float64,Complex128}}
 
     # I think the normalization factor is necessary so that the result
@@ -292,13 +292,13 @@ end
 # #########################################################
 
 """
-    norm(mps)
+    norm2(mps)
 
 calculates the norm of a matrix product state `mps` that is to
 calculate the tensor contraction corresponding to ``⟨ψ|ψ⟩``.
 
 """
-function norm(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
+function norm2(mps::MPS{T}) where {T<:Union{Float64,Complex128}}
     d = mps.phys_dim
     Lx = mps.length
 
