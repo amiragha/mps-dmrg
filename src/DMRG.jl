@@ -2,88 +2,99 @@
     dmrg_sweep_twosite(mps, mpo)
 """
 function dmrg_sweep_twosite!(mps::MPS{T},
-                             mpo::MPO{T};
-                             verbose::Bool=false) where {T<:Union{Float64, Complex128}}
+                             mpo::MPO{T},
+                             max_dim::Int64;
+                             verbose::Bool=false,
+                             direction::Symbol=:R) where {T<:Union{Float64, Complex128}}
 
     Lx = mps.length
     physd = mps.phys_dim
 
-    left  = ones(T, 1,1,1)
-    for bond=1:Lx-2
-        (verbose) && println("Minimizing sites ", bond, " and ", bond+1, " ...")
-        right = ones(T, 1,1,1)
-        for i=Lx:-1:bond+2
-            mats = mps.matrices[i]
-            mato = mpo.matrices[i]
-            @tensor right[lu,lm,ld] :=  conj(mats)[ld,rd,d'] *
-                (mato[d',lm,d,rm] * (mats[lu,ru,d] * right[ru,rm,rd]))
-        end
+    matrices = []
 
-        diml = mps.dims[bond]
-        dimr = mps.dims[bond+2]
+    if direction == :R
+        left  = ones(T, 1,1,1)
+        for bond=1:Lx-2
+            (verbose) && println("Minimizing sites ", bond, " and ", bond+1, " ...")
+            right = ones(T, 1,1,1)
+            for i=Lx:-1:bond+2
+                mats = mps.matrices[i]
+                mato = mpo.matrices[i]
+                @tensor right[lu,lm,ld] :=  conj(mats)[ld,rd,d'] *
+                    (mato[d',lm,d,rm] * (mats[lu,ru,d] * right[ru,rm,rd]))
+            end
 
-        ## QQQ? Is this the best way?!
-        matvec!(v, v0) = dmrg_matvec_twosite!(v, left, mpo.matrices[bond], mpo.matrices[bond+1], right, v0)
-        @tensor twosite[l,d1,d2,r] := (mps.matrices[bond])[l,m,d1] * (mps.matrices[bond+1])[m,r,d2]
-        evals, evecs = eigsfn(matvec!, reshape(twosite, diml*physd*physd*dimr), true, nev=1, which=:SR)
+            diml = mps.dims[bond]
+            dimr = mps.dims[bond+2]
 
-        (verbose) && println("Energy is ", evals[1])
+            ## QQQ? Is this the best way?!
+            matvec!(v, v0) = dmrg_matvec_twosite!(v, left, mpo.matrices[bond], mpo.matrices[bond+1], right, v0)
+            @tensor twosite[l,d1,r,d2] := (mps.matrices[bond])[l,m,d1] * (mps.matrices[bond+1])[m,r,d2]
+            # evals, evecs = eigsfn(matvec!, reshape(twosite, diml*physd*dimr*physd), true, nev=1, which=:SR)
+            evals, evecs = eigsfn(matvec!, normalize(randn(diml*physd*physd*dimr)), true, nev=1, which=:SR)
 
-        fact = svdfact(reshape(evecs[:, 1], diml*physd, dimr*physd), thin=true)
-        S, n, ratio = truncate(fact[:S])
-        U = fact[:U][:,1:n]
-        Vt = fact[:Vt][1:n,:]
+            (verbose) && println("Energy is ", evals[1])
 
-        mps.dims[bond+1] = n
-        U = reshape(transpose(U), n, diml, physd)
-        mps.matrices[bond] = permutedims(U, [2,1,3])
-        mps.matrices[bond+1] = reshape(diagm(S) * Vt, n, dimr, physd)
-        mps.center = bond+1
-        mats = mps.matrices[bond]
-        mato = mpo.matrices[bond]
-        @tensor left[ru,rm,rd] :=  conj(mats)[ld,rd,d'] *
-                (mato[d',lm,d,rm] * (mats[lu,ru,d] * left[lu,lm,ld]))
-    end
+            fact = svdfact(reshape(evecs, diml*physd, dimr*physd), thin=true)
+            S, n, ratio = truncate(fact[:S])
+            U = fact[:U][:,1:n]
+            Vt = fact[:Vt][1:n,:]
 
-    #@show dims_are_consistent(mps)
-
-    right  = ones(T, 1,1,1)
-    for bond=Lx-1:-1:1
-        (verbose) && println("Minimizing sites ", bond, " and ", bond+1, " ...")
-        left = ones(T, 1,1,1)
-        for i=1:bond-1
-            mats = mps.matrices[i]
-            mato = mpo.matrices[i]
+            mps.dims[bond+1] = n
+            U = reshape(transpose(U), n, diml, physd)
+            mps.matrices[bond] = permutedims(U, [2,1,3])
+            mps.matrices[bond+1] = reshape(diagm(S) * Vt, n, dimr, physd)
+            mps.center = bond+1
+            # mats = mps.matrices[bond]
+            mats = permutedims(U, [2,1,3])
+            mato = mpo.matrices[bond]
             @tensor left[ru,rm,rd] :=  conj(mats)[ld,rd,d'] *
                 (mato[d',lm,d,rm] * (mats[lu,ru,d] * left[lu,lm,ld]))
         end
 
-        diml = mps.dims[bond]
-        dimr = mps.dims[bond+2]
+        #@show dims_are_consistent(mps)
+    elseif direction == :L
+        right  = ones(T, 1,1,1)
+        for bond=Lx-1:-1:2
+            (verbose) && println("Minimizing sites ", bond, " and ", bond+1, " ...")
+            left = ones(T, 1,1,1)
+            for i=1:bond-1
+                mats = mps.matrices[i]
+                mato = mpo.matrices[i]
+                @tensor left[ru,rm,rd] :=  conj(mats)[ld,rd,d'] *
+                    (mato[d',lm,d,rm] * (mats[lu,ru,d] * left[lu,lm,ld]))
+            end
 
-        ## QQQ? Is this the best way?!
-        matvec!(v, v0) = dmrg_matvec_twosite!(v, left, mpo.matrices[bond], mpo.matrices[bond+1], right, v0)
-        @tensor twosite[l,d1,d2,r] := (mps.matrices[bond])[l,m,d1] * (mps.matrices[bond+1])[m,r,d2]
-        evals, evecs = eigsfn(matvec!, reshape(twosite, diml*physd*physd*dimr), true, nev=1, which=:SR)
+            diml = mps.dims[bond]
+            dimr = mps.dims[bond+2]
 
-        (verbose) && println("Energy is ", evals[1])
+            ## QQQ? Is this the best way?!
+            matvec!(v, v0) = dmrg_matvec_twosite!(v, left, mpo.matrices[bond], mpo.matrices[bond+1], right, v0)
+            @tensor twosite[l,d1,r,d2] := (mps.matrices[bond])[l,m,d1] * (mps.matrices[bond+1])[m,r,d2]
+            # evals, evecs = eigsfn(matvec!, reshape(twosite, diml*physd*dimr*physd), true, nev=1, which=:SR)
+            evals, evecs = eigsfn(matvec!, normalize(randn(diml*physd*physd*dimr)), true, nev=1, which=:SR)
 
-        fact = svdfact(reshape(evecs[:, 1], diml*physd, dimr*physd), thin=true)
-        S, n, ratio = truncate(fact[:S])
-        U = fact[:U][:,1:n]
-        Vt = fact[:Vt][1:n,:]
+            (verbose) && println("Energy is ", evals[1])
 
-        mps.dims[bond+1] = n
-        U = reshape(transpose(U * diagm(S)), n, diml, physd)
-        mps.matrices[bond] = permutedims(U, [2,1,3])
-        mps.matrices[bond+1] = reshape(Vt, n, dimr, physd)
-        mps.center = bond
-        mats = mps.matrices[bond+1]
-        mato = mpo.matrices[bond+1]
-        @tensor right[lu,lm,ld] :=  conj(mats)[ld,rd,d'] *
+            fact = svdfact(reshape(evecs, diml*physd, dimr*physd), thin=true)
+            S, n, ratio = truncate(fact[:S])
+            U = fact[:U][:,1:n]
+            Vt = fact[:Vt][1:n,:]
+
+            mps.dims[bond+1] = n
+            Us = reshape(transpose(U * diagm(S)), n, diml, physd)
+            mps.matrices[bond] = permutedims(Us, [2,1,3])
+            mps.matrices[bond+1] = reshape(Vt, n, dimr, physd)
+            mps.center = bond
+            # mats = mps.matrices[bond+1]
+            mats = reshape(Vt, n, dimr, physd)
+            mato = mpo.matrices[bond+1]
+            @tensor right[lu,lm,ld] :=  conj(mats)[ld,rd,d'] *
                 (mato[d',lm,d,rm] * (mats[lu,ru,d] * right[ru,rm,rd]))
 
+        end
     end
+    @show dims_are_consistent(mps)
     nothing
 end
 
@@ -101,12 +112,14 @@ function dmrg_matvec_twosite!(result,#::Vector{T},
     dimr = size(right, 1)
     physd = size(mpoten1, 1)
     @assert  diml*physd*physd*dimr == length(inputv) == length(result)
-    inputv = reshape(inputv, diml, physd, physd, dimr)
+    inputv = reshape(inputv, diml, physd, dimr, physd)
 
+    #LEFT = deepcopy(left)
+    #RGHT = deepcopy(left)
     ### TODO: explain the indexes.
-    @tensor v[ld, d1',d2',rd] := left[lu,lm,ld] * (
+    @tensor v[ld, d1',rd, d2'] := left[lu,lm,ld] * (
         (mpoten1[d1',lm,d1,mm] * mpoten2[d2',mm,d2,rm]) *
-        (inputv[lu,d1,d2,ru] * right[ru,rm,rd]))
+        (inputv[lu,d1,ru,d2] * right[ru,rm,rd]))
 
-    result[:] = reshape(v, diml*physd*physd*dimr)
+    result[:] = reshape(v, diml*physd*dimr*physd)
 end
