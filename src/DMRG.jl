@@ -1,16 +1,34 @@
+function dmrg_twosite!(mpo::MPO{T},
+                       sweeps::Int64,
+                       max_dim::Int64;
+                       initial_msp::MPS{T}=MPS{T}(mpo.length, mpo.phys_dim),
+                       measurements::Vector{Measurement}=Measurement[],
+                       measure_every_sweep::Bool,
+                       verbose::Bool=true) where {T<:Union{Float64,Complex128}}
+
+    mps = initial_msp
+    for measurement in measurements
+        measure!(measurement, mps)
+    end
+    mps = dmrg_sweep_twosite(initial_msp)
+end
+
+
 """
     dmrg_sweep_twosite(mps, mpo)
 """
-function dmrg_sweep_twosite!(mps::MPS{T},
-                             mpo::MPO{T},
-                             max_dim::Int64;
-                             verbose::Bool=false,
-                             direction::Symbol=:R) where {T<:Union{Float64, Complex128}}
+function dmrg_sweep_twosite(mps::MPS{T},
+                            mpo::MPO{T},
+                            max_dim::Int64;
+                            verbose::Bool=false,
+                            direction::Symbol=:R) where {T<:Union{Float64, Complex128}}
 
     Lx = mps.length
     physd = mps.phys_dim
 
-    matrices = []
+    newmps = mps
+
+    #matrices = []
 
     if direction == :R
         left  = ones(T, 1,1,1)
@@ -24,7 +42,7 @@ function dmrg_sweep_twosite!(mps::MPS{T},
                     (mato[d',lm,d,rm] * (mats[lu,ru,d] * right[ru,rm,rd]))
             end
 
-            diml = mps.dims[bond]
+            diml = newmps.dims[bond]
             dimr = mps.dims[bond+2]
 
             ## QQQ? Is this the best way?!
